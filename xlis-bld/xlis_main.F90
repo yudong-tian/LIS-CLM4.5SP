@@ -160,8 +160,9 @@
 
     write(*, *) "initialize2() done ..."
 
-    call clm_drv(doalb, nextsw_cday, declinp1, declin, rstwr, nlend, rdate)
-
-
+    ! time loop
+    ! if ( .not. end_of_run() ) then 
+      call clm_drv(doalb, nextsw_cday, declinp1, declin, rstwr, nlend, rdate)
+    ! end if 
 
 end program xlis_main
