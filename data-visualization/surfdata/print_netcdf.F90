@@ -60,7 +60,6 @@
 ! forget data type matching. Convert everything to double when reading whatever types
 ! see https://www.unidata.ucar.edu/software/netcdf/docs/netcdf/Type-Conversion.html#Type-Conversion
 !  select case (trim(data_type)) 
-!    case ('int') 
            allocate(ddata4d(count(1), count(2), count(3), count(4)))  
            !call check( nf90_get_var(ncid, varid, ddata1d, start=start, count=count ) )
            call check( nf90_get_var(ncid, varid, ddata4d, start=start, count=count ) )
