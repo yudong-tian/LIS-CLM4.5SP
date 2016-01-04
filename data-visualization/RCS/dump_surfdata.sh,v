@@ -1,0 +1,37 @@
+head	1.1;
+access;
+symbols;
+locks
+	ytian:1.1; strict;
+comment	@# @;
+
+
+1.1
+date	2015.12.24.00.07.34;	author ytian;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@
+file=/discover/nobackup/projects/nca/ytian/CESM_INPUT_DATA/lnd/clm2/surfdata_map/surfdata_0.9x1.25_simyr1850_c130415.nc
+ncdump -h $file | egrep '(int |float |double ).*\(.*\)' > tmp.vars 
+
+while read var; do 
+
+  cmd=`echo $var | sed 's/[,();]/ /g'`
+  echo $cmd
+
+  echo ./read_netcdf $file $cmd 
+
+done < tmp.vars
+
+@
