@@ -1,0 +1,11 @@
+&modelio
+ diri = '/discover/nobackup/ytian/CESM_CODE/LIS-CLM4.5SP/bld/lnd'
+ diro = '/discover/nobackup/ytian/CESM_CODE/LIS-CLM4.5SP/run'
+ logfile = 'lnd.log.151113-165229'
+/
+&pio_inparm
+ pio_numiotasks = -99
+ pio_root = -99
+ pio_stride = -99
+ pio_typename = 'nothing'
+/
