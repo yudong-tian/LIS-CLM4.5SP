@@ -71,7 +71,7 @@ contains
     use clmtypeInitMod  , only : initClmtype
     use clm_varpar      , only : maxpatch, clm_varpar_init
     use clm_varcon      , only : clm_varcon_init
-    use clm_varctl      , only : fsurdat, fatmlndfrc, flndtopo, fglcmask, noland 
+    use clm_varctl      , only : fsurdat, fatmlndfrc, flndtopo, fglcmask, noland, inst_name 
     use pftvarcon       , only : pftconrd
     use decompInitMod   , only : decompInit_lnd, decompInit_glcp
     use decompMod       , only : get_proc_bounds, procinfo, ldecomp
@@ -128,10 +128,15 @@ contains
     call clm_varcon_init()
     if (masterproc) then
        write(iulog,*) 'Not Skipping ncd_pio_init  .....'
+       write(iulog,*) 'inst_name=', inst_name 
        write(iulog,*)
+       
        call shr_sys_flush(iulog)
+
     endif
+
     !YDT 12/2/15
+     
     call ncd_pio_init()
 
     if (masterproc) call control_print()

@@ -19,7 +19,7 @@
     use controlMod       , only : control_setNL
     use decompMod        , only : get_proc_bounds
     use domainMod        , only : ldomain
-    use shr_pio_mod      , only : shr_pio_init1, shr_pio_init2 
+    use shr_pio_mod      , only : shr_pio_init1, shr_pio_init2
     use shr_kind_mod     , only : r8 => shr_kind_r8
     use shr_file_mod     , only : shr_file_setLogUnit, shr_file_setLogLevel, &
                                   shr_file_getLogUnit, shr_file_getLogLevel, &
@@ -30,7 +30,7 @@
                                   seq_infodata_start_type_start, seq_infodata_start_type_cont,   &
                                   seq_infodata_start_type_brnch
     use seq_comm_mct     , only : seq_comm_suffix, seq_comm_inst, seq_comm_name
-    use spmdMod          , only : masterproc, spmd_init, npes
+    use spmdMod          , only : masterproc, spmd_init, npes, iam
     use clm_varctl       , only : nsrStartup, nsrContinue, nsrBranch
     use clm_cpl_indices  , only : clm_cpl_indices_set, nflds_l2x
     use seq_flds_mod
@@ -121,7 +121,8 @@
 
     call shr_pio_init1(num_inst_total, "drv_in", mpicom_lnd) 
     !call shr_pio_init2(comp_id,comp_name,comp_iamin,comp_comm,comp_comm_iam)
-     call shr_pio_init2((/1/),      (/"lnd"/),    (/.true./), (/mpicom_lnd/), (/0/) )
+    ! YDT comp_name has to be upcase
+     call shr_pio_init2((/1/),      (/"LND"/),    (/.true./), (/mpicom_lnd/), (/iam/) )
 
     call ESMF_Initialize() 
 

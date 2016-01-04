@@ -4,8 +4,8 @@
  logfile = 'lnd.log.151113-165229'
 /
 &pio_inparm
- pio_numiotasks = -99
- pio_root = -99
- pio_stride = -99
- pio_typename = 'nothing'
+ pio_numiotasks = 1 
+ pio_root = 1
+ pio_stride = 1
+ pio_typename = 'netcdf'
 /

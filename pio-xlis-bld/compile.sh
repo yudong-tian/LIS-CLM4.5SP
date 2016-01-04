@@ -36,9 +36,9 @@ mpif90  -free -check -traceback -o xlis_main xlis_main.o clm_driver.o clm_initia
   clm_time_manager.o \
   -L/discover/nobackup/ytian/CESM_CODE/LIS-CLM4.5SP/bld/lib/  \
   -latm -lice -llnd -locn -lrof -lglc -lwav \
-  -L/discover/nobackup/ytian/CESM_CODE/LIS-CLM4.5SP/bld/intel/impi/nodebug/nothreads/MCT/noesmf/a1l1r1i1o1g1w1/csm_share \
+  -L/discover/nobackup/ytian/CESM_CODE/LIS-CLM4.5SP/bld/intel/impi/debug/nothreads/MCT/noesmf/a1l1r1i1o1g1w1/csm_share \
   -lcsm_share \
-  -L/discover/nobackup/ytian/CESM_CODE/LIS-CLM4.5SP/bld/intel/impi/nodebug/nothreads/lib -lpio \
+  -L/discover/nobackup/ytian/CESM_CODE/LIS-CLM4.5SP/bld/intel/impi/debug/nothreads/lib -lpio \
   -lgptl -lmct -lmpeu \
   -L/usr/local/other/SLES11.1/netcdf/4.1.3/intel-12.1.0.233/lib \
   -lnetcdff  -lnetcdf -lm -lcurl  \

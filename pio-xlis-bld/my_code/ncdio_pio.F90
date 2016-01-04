@@ -1,6 +1,5 @@
 module ncdio_pio
 
-!YDT: a wrapper to replace PIO with conventional IO
 !-----------------------------------------------------------------------
 !BOP
 !
@@ -20,14 +19,12 @@ module ncdio_pio
   use shr_file_mod   , only : shr_file_getunit, shr_file_freeunit
   use shr_string_mod , only : shr_string_toUpper
   use abortutils     , only : endrun
-  use decompMod      , only : get_clmlevel_gsize,get_clmlevel_gsmap, ldecomp
+  use decompMod      , only : get_clmlevel_gsize,get_clmlevel_gsmap
   use perf_mod       , only : t_startf, t_stopf
   use fileutils      , only : getavu, relavu
   use shr_infnan_mod , only : nan => shr_infnan_nan, assignment(=)
   use mct_mod
   use pio
-!YDT
-  use netcdf 
 !
 ! !PUBLIC TYPES:
   implicit none
@@ -117,7 +114,7 @@ module ncdio_pio
   private :: ncd_getiodesc      ! obtain iodesc
   private :: scam_field_offsets ! get offset to proper lat/lon gridcell for SCAM
 
-  integer,parameter,private :: debug = 2             ! local debug level --  on: > 1 
+  integer,parameter,private :: debug = 0             ! local debug level
 
   integer , parameter  , public  :: max_string_len = 256     ! length of strings
   real(r8), parameter  , public  :: fillvalue = 1.e36_r8     ! fill value for netcdf fields
@@ -199,18 +196,13 @@ contains
     character(len=*),parameter :: subname='ncd_pio_openfile' ! subroutine name
 !-----------------------------------------------------------------------
 !EOP
-    !YDT ierr = pio_openfile(pio_subsystem, file, io_type, fname, mode)
-    ierr = nf90_open(fname, mode, file%fh) 
+    ierr = pio_openfile(pio_subsystem, file, io_type, fname, mode)
 
-    if (ierr /= NF90_NOERR) then 
+    if(ierr/= PIO_NOERR) then
        call endrun(subname//'ERROR: Failed to open file')
-    end if 
-
-!    if(ierr/= PIO_NOERR) then
-!       call endrun(subname//'ERROR: Failed to open file')
-!    else if(pio_subsystem%io_rank==0) then
-!       write(iulog,*) 'Opened existing file ', trim(fname), file%fh
-!    end if
+    else if(pio_subsystem%io_rank==0) then
+       write(iulog,*) 'Opened existing file ', trim(fname), file%fh
+    end if
 
   end subroutine ncd_pio_openfile
 
@@ -235,13 +227,10 @@ contains
 !
 !
 ! !LOCAL VARIABLES:
-    integer :: ierr
 !-----------------------------------------------------------------------
 !EOP
 
-    ! YDT
-    ! call pio_closefile(file)
-    ierr=nf90_close(file%fh)
+    call pio_closefile(file)
 
   end subroutine ncd_pio_closefile
 
@@ -319,16 +308,14 @@ contains
        log_err = .true.
     end if
     readvar = .true.
-    !YDT
-    !call pio_seterrorhandling(ncid, PIO_BCAST_ERROR)
-    !ret = PIO_inq_varid (ncid, varname, vardesc)
-    ret = nf90_inq_varid (ncid%fh, varname, vardesc%varid)
-    if (ret /= NF90_NOERR) then
+    call pio_seterrorhandling(ncid, PIO_BCAST_ERROR)
+    ret = PIO_inq_varid (ncid, varname, vardesc)
+    if (ret /= PIO_noerr) then
        readvar = .false.
        if (masterproc .and. log_err) &
            write(iulog,*) subname//': variable ',trim(varname),' is not on dataset'
     end if
-    !call pio_seterrorhandling(ncid, PIO_INTERNAL_ERROR)
+    call pio_seterrorhandling(ncid, PIO_INTERNAL_ERROR)
     
   end subroutine check_var
 
@@ -359,11 +346,8 @@ contains
     character(len=*),parameter :: subname='check_dim' ! subroutine name
 !-----------------------------------------------------------------------
 
-    !YDT status = pio_inq_dimid (ncid, trim(dimname), dimid)
-    !YDT status = pio_inq_dimlen (ncid, dimid, dimlen)
-    status = nf90_inq_dimid (ncid%fh, trim(dimname), dimid)
-    status = nf90_inquire_dimension(ncid%fh, dimid, len=dimlen)
-
+    status = pio_inq_dimid (ncid, trim(dimname), dimid)
+    status = pio_inq_dimlen (ncid, dimid, dimlen)
     if (dimlen /= value) then
        write(iulog,*) subname//' ERROR: mismatch of input dimension ',dimlen, &
             ' with expected value ',value,' for variable ',trim(dimname)
@@ -426,18 +410,16 @@ contains
 !-----------------------------------------------------------------------
 
     if ( present(dimexist) )then
-       !YDT call pio_seterrorhandling(ncid, PIO_BCAST_ERROR)
+       call pio_seterrorhandling(ncid, PIO_BCAST_ERROR)
     end if
-    !YDT status = PIO_inq_dimid(ncid,name,dimid)
-    status = nf90_inq_dimid(ncid%fh,name,dimid)
+    status = PIO_inq_dimid(ncid,name,dimid)
     if ( present(dimexist) )then
-       !if ( status == PIO_NOERR)then
-       if ( status == NF90_NOERR)then
+       if ( status == PIO_NOERR)then
           dimexist = .true.
        else
           dimexist = .false.
        end if
-       !YDT call pio_seterrorhandling(ncid, PIO_INTERNAL_ERROR)
+       call pio_seterrorhandling(ncid, PIO_INTERNAL_ERROR)
     end if
 
   end subroutine ncd_inqdid
@@ -472,8 +454,7 @@ contains
        call ncd_inqdid(ncid,name,dimid)
     end if
     len = -1
-    !YDT status = PIO_inq_dimlen(ncid,dimid,len)
-    status = nf90_inquire_dimension(ncid%fh, dimid, len=len)
+    status = PIO_inq_dimlen(ncid,dimid,len)
 
   end subroutine ncd_inqdlen
 
@@ -539,51 +520,29 @@ contains
     ni = 0
     nj = 0
 
-!YDT    call pio_seterrorhandling(ncid, PIO_BCAST_ERROR)
-!    ier = pio_inq_dimid (ncid, 'lon', dimid)
-!    if (ier == PIO_NOERR) ier = pio_inq_dimlen(ncid, dimid, ni)
-!    ier = pio_inq_dimid (ncid, 'lat', dimid)
-!    if (ier == PIO_NOERR) ier = pio_inq_dimlen(ncid, dimid, nj)
-!
-!    ier = pio_inq_dimid (ncid, 'lsmlon', dimid)
-!    if (ier == PIO_NOERR) ier = pio_inq_dimlen(ncid, dimid, ni)
-!    ier = pio_inq_dimid (ncid, 'lsmlat', dimid)
-!    if (ier == PIO_NOERR) ier = pio_inq_dimlen(ncid, dimid, nj)
-!
-!    ier = pio_inq_dimid (ncid, 'ni', dimid)
-!    if (ier == PIO_NOERR) ier = pio_inq_dimlen(ncid, dimid, ni)
-!    ier = pio_inq_dimid (ncid, 'nj', dimid)
-!    if (ier == PIO_NOERR) ier = pio_inq_dimlen(ncid, dimid, nj)
-!
-!    ier = pio_inq_dimid (ncid, 'gridcell', dimid)
-!    if (ier == PIO_NOERR) then
-!       ier = pio_inq_dimlen(ncid, dimid, ni)
-!       if (ier == PIO_NOERR) nj = 1
-!    end if
-!
-!    call pio_seterrorhandling(ncid, PIO_INTERNAL_ERROR)
+    call pio_seterrorhandling(ncid, PIO_BCAST_ERROR)
+    ier = pio_inq_dimid (ncid, 'lon', dimid)
+    if (ier == PIO_NOERR) ier = pio_inq_dimlen(ncid, dimid, ni)
+    ier = pio_inq_dimid (ncid, 'lat', dimid)
+    if (ier == PIO_NOERR) ier = pio_inq_dimlen(ncid, dimid, nj)
 
-    ier = nf90_inq_dimid (ncid%fh, 'lon', dimid)
-    if (ier == NF90_NOERR) ier = nf90_inquire_dimension(ncid%fh, dimid, len=ni)
-    ier = nf90_inq_dimid (ncid%fh, 'lat', dimid)
-    if (ier == NF90_NOERR) ier = nf90_inquire_dimension(ncid%fh, dimid, len=nj)
+    ier = pio_inq_dimid (ncid, 'lsmlon', dimid)
+    if (ier == PIO_NOERR) ier = pio_inq_dimlen(ncid, dimid, ni)
+    ier = pio_inq_dimid (ncid, 'lsmlat', dimid)
+    if (ier == PIO_NOERR) ier = pio_inq_dimlen(ncid, dimid, nj)
 
-    ier = nf90_inq_dimid (ncid%fh, 'lsmlon', dimid)
-    if (ier == NF90_NOERR) ier = nf90_inquire_dimension(ncid%fh, dimid, len=ni)
-    ier = nf90_inq_dimid (ncid%fh, 'lsmlat', dimid)
-    if (ier == NF90_NOERR) ier = nf90_inquire_dimension(ncid%fh, dimid, len=nj)
+    ier = pio_inq_dimid (ncid, 'ni', dimid)
+    if (ier == PIO_NOERR) ier = pio_inq_dimlen(ncid, dimid, ni)
+    ier = pio_inq_dimid (ncid, 'nj', dimid)
+    if (ier == PIO_NOERR) ier = pio_inq_dimlen(ncid, dimid, nj)
 
-    ier = nf90_inq_dimid (ncid%fh, 'ni', dimid)
-    if (ier == NF90_NOERR) ier = nf90_inquire_dimension(ncid%fh, dimid, len=ni)
-    ier = nf90_inq_dimid (ncid%fh, 'nj', dimid)
-    if (ier == NF90_NOERR) ier = nf90_inquire_dimension(ncid%fh, dimid, len=nj)
-
-    ier = nf90_inq_dimid (ncid%fh, 'gridcell', dimid)
-    if (ier == NF90_NOERR) then
-       ier = nf90_inquire_dimension(ncid%fh, dimid, len=ni)
-       if (ier == NF90_NOERR) nj = 1
+    ier = pio_inq_dimid (ncid, 'gridcell', dimid)
+    if (ier == PIO_NOERR) then
+       ier = pio_inq_dimlen(ncid, dimid, ni)
+       if (ier == PIO_NOERR) nj = 1
     end if
 
+    call pio_seterrorhandling(ncid, PIO_INTERNAL_ERROR)
 
     if (ni == 0 .or. nj == 0) then
        write(iulog,*) trim(subname),' ERROR: ni,nj = ',ni,nj,' cannot be zero '
@@ -630,20 +589,17 @@ contains
 
     if (present(readvar)) then
        readvar = .false.
-       !YDT call pio_seterrorhandling(ncid, PIO_BCAST_ERROR)
-       !ret = PIO_inq_varid(ncid,name,vardesc)
-       ret = NF90_inq_varid(ncid%fh, name, vardesc%varid)
-       !if (ret /= PIO_noerr) then
-       if (ret /= NF90_NOERR) then
+       call pio_seterrorhandling(ncid, PIO_BCAST_ERROR)
+       ret = PIO_inq_varid(ncid,name,vardesc)
+       if (ret /= PIO_noerr) then
           if (masterproc) write(iulog,*) subname//': variable ',trim(name),' is not on dataset'
           readvar = .false.
        else
           readvar = .true.
        end if
-       !YDT call pio_seterrorhandling(ncid, PIO_INTERNAL_ERROR)
+       call pio_seterrorhandling(ncid, PIO_INTERNAL_ERROR)
     else
-       !YDT ret = PIO_inq_varid(ncid,name,vardesc)
-       ret = NF90_inq_varid(ncid%fh, name, vardesc%varid)
+       ret = PIO_inq_varid(ncid,name,vardesc)
     endif
     varid = vardesc%varid
  
@@ -1155,11 +1111,7 @@ contains
                 ' ERROR: scalar var is NOT compatable with posNOTonfile = .false.' )
              end if
           endif
-          !YDT status = pio_get_var(ncid, varid, idata)
-          status = nf90_get_var(ncid%fh, varid, idata)
-             !YDT
-             if ( status /= NF90_NOERR .and. masterproc) & 
-                  write(iulog,*) trim(subname), ' nf90_get_var error, var=', trim(varname), ' status=', trim(nf90_strerror(status))
+          status = pio_get_var(ncid, varid, idata)
           if (      idata == 0 )then
              data = .false.
           else if ( idata == 1 )then
@@ -1186,8 +1138,7 @@ contains
        else
           temp(1) = 0
        end if
-       !YDT status = pio_put_var(ncid, varid, start, count, temp)
-       status = nf90_put_var(ncid%fh, varid, temp, start, count) 
+       status = pio_put_var(ncid, varid, start, count, temp)
 
     endif   ! flag
 
@@ -1233,11 +1184,7 @@ contains
 
        call ncd_inqvid(ncid, varname, varid, vardesc, readvar=varpresent)
        if (varpresent) then
-          !YDT status = pio_get_var(ncid, varid, data)
-          status = nf90_get_var(ncid%fh, varid, data)
-             !YDT
-             if ( status /= NF90_NOERR .and. masterproc) & 
-                  write(iulog,*) trim(subname), ' nf90_get_var error, var=', trim(varname), ' status=', trim(nf90_strerror(status))
+          status = pio_get_var(ncid, varid, data)
           if (single_column .and. present(posNOTonfile) ) then
              if ( .not. posNOTonfile )then
                 call endrun( subname// &
@@ -1258,8 +1205,7 @@ contains
        end if
        call ncd_inqvid  (ncid, varname, varid, vardesc)
        temp(1) = data
-       !YDT status = pio_put_var(ncid, varid, start, count, temp)
-       status = nf90_put_var(ncid%fh, varid, temp, start, count) 
+       status = pio_put_var(ncid, varid, start, count, temp)
 
     endif   ! flag
 
@@ -1371,11 +1317,7 @@ contains
 
        call ncd_inqvid(ncid, varname, varid, vardesc, readvar=varpresent)
        if (varpresent) then
-          !YDT status = pio_get_var(ncid, varid, data)
-          status = nf90_get_var(ncid%fh, varid, data)
-             !YDT
-             if ( status /= NF90_NOERR .and. masterproc) & 
-                  write(iulog,*) trim(subname), ' nf90_get_var error, var=', trim(varname), ' status=', trim(nf90_strerror(status))
+          status = pio_get_var(ncid, varid, data)
           if (single_column .and. present(posNOTonfile) ) then
              if ( .not. posNOTonfile )then
                 call endrun( subname// &
@@ -1399,8 +1341,7 @@ contains
           count(2) = 1
        end if
        call ncd_inqvid  (ncid, varname, varid, vardesc)
-       !YDT status = pio_put_var(ncid, varid, start, count, data)
-       status = nf90_put_var(ncid%fh, varid, data, start, count) 
+       status = pio_put_var(ncid, varid, start, count, data)
 
     endif   ! flag
 
@@ -1447,11 +1388,7 @@ contains
        call ncd_inqvid(ncid, varname, varid, vardesc, readvar=varpresent)
        if (varpresent) then
           allocate( idata(size(data)) ) 
-          !YDT status = pio_get_var(ncid, varid, idata)
-          status = nf90_get_var(ncid%fh, varid, idata)
-             !YDT
-             if ( status /= NF90_NOERR .and. masterproc) & 
-                  write(iulog,*) trim(subname), ' nf90_get_var error, var=', trim(varname), ' status=', trim(nf90_strerror(status))
+          status = pio_get_var(ncid, varid, idata)
           if (single_column .and. present(posNOTonfile) ) then
              if ( .not. posNOTonfile )then
                 call endrun( subname// &
@@ -1487,8 +1424,7 @@ contains
        elsewhere
           idata = 0
        end where
-       !YDT status = pio_put_var(ncid, varid, start, count, idata)
-       status = nf90_put_var(ncid%fh, varid, idata, start, count) 
+       status = pio_put_var(ncid, varid, start, count, idata)
        deallocate( idata )
 
     endif   ! flag
@@ -1534,11 +1470,7 @@ contains
 
        call ncd_inqvid(ncid, varname, varid, vardesc, readvar=varpresent)
        if (varpresent) then
-          !YDT status = pio_get_var(ncid, varid, data)
-          status = nf90_get_var(ncid%fh, varid, data)
-             !YDT
-             if ( status /= NF90_NOERR .and. masterproc) & 
-                  write(iulog,*) trim(subname), ' nf90_get_var error, var=', trim(varname), ' status=', trim(nf90_strerror(status))
+          status = pio_get_var(ncid, varid, data)
           if (single_column .and. present(posNOTonfile) ) then
              if ( .not. posNOTonfile )then
                 call endrun( subname// &
@@ -1562,8 +1494,7 @@ contains
           count(2) = 1
        end if
        call ncd_inqvid  (ncid, varname, varid, vardesc)
-       !YDT status = pio_put_var(ncid, varid, start, count, data)
-       status = nf90_put_var(ncid%fh, varid, data, start, count) 
+       status = pio_put_var(ncid, varid, start, count, data)
 
     endif   ! flag
 
@@ -1609,11 +1540,7 @@ contains
 
        call ncd_inqvid(ncid, varname, varid, vardesc, readvar=varpresent)
        if (varpresent) then
-          !YDT status = pio_get_var(ncid, varid, data)
-          status = nf90_get_var(ncid%fh, varid, data)
-             !YDT
-             if ( status /= NF90_NOERR .and. masterproc) & 
-                  write(iulog,*) trim(subname), ' nf90_get_var error, var=', trim(varname), ' status=', trim(nf90_strerror(status))
+          status = pio_get_var(ncid, varid, data)
        endif
        if (present(readvar)) readvar = varpresent
 
@@ -1680,20 +1607,9 @@ contains
 
     if (flag == 'read') then
 
-       !YDT ncd_inqvid de-pio'd
        call ncd_inqvid(ncid, varname, varid, vardesc, readvar=varpresent)
-           !YDT debug
-           if (masterproc) then
-                 write(iulog,*) subname//' varpresent=', varpresent, " ", varname 
-           end if 
        if (varpresent) then
           if (single_column) then
-               !YDT
-               if (masterproc) then
-                   write(iulog,*) subname//' ERROR: single_column unsupported '
-                call endrun()
-               end if 
-
              call scam_field_offsets(ncid,'undefined',vardesc,&
                   start,count,found=found,posNOTonfile=posNOTonfile)
              if ( found )then
@@ -1702,11 +1618,7 @@ contains
                 status = pio_get_var(ncid, varid, data)
              end if
           else
-             !YDT status = pio_get_var(ncid, varid, data)
-             status = nf90_get_var(ncid%fh, varid, data)
-             !YDT
-             if ( status /= NF90_NOERR .and. masterproc) & 
-                  write(iulog,*) trim(subname), ' nf90_get_var error, var=', trim(varname), ' status=', trim(nf90_strerror(status))
+             status = pio_get_var(ncid, varid, data)
           endif
        endif
        if (present(readvar)) readvar = varpresent
@@ -1729,8 +1641,7 @@ contains
           count(3) = 1
        end if
        call ncd_inqvid(ncid, varname, varid, vardesc)
-       !YDT status = pio_put_var(ncid, varid, start, count, data)
-       status = nf90_put_var(ncid%fh, varid, data, start, count) 
+       status = pio_put_var(ncid, varid, start, count, data)
 
     endif   
 
@@ -1776,7 +1687,7 @@ contains
 
        call ncd_inqvid(ncid, varname, varid, vardesc, readvar=varpresent)
        if (varpresent) then
-          if (single_column) then  ! YDT: assuming single_column not supported
+          if (single_column) then
              call scam_field_offsets(ncid,'undefined',vardesc,start,count,&
                                      found=found,posNOTonfile=posNOTonfile)
              if ( found )then
@@ -1785,11 +1696,7 @@ contains
                 status = pio_get_var(ncid, varid, data)
              end if
           else
-             !YDT status = pio_get_var(ncid, varid, data)
-             status = nf90_get_var(ncid%fh, varid, data)
-             !YDT
-             if ( status /= NF90_NOERR .and. masterproc) & 
-                  write(iulog,*) trim(subname), ' nf90_get_var error, var=', trim(varname), ' status=', trim(nf90_strerror(status))
+             status = pio_get_var(ncid, varid, data)
           endif
        endif
        if (present(readvar)) readvar = varpresent
@@ -1812,8 +1719,7 @@ contains
           count(3) = 1
        end if
        call ncd_inqvid  (ncid, varname, varid, vardesc)
-       !YDT status = pio_put_var(ncid, varid, start, count, data)
-       status = nf90_put_var(ncid%fh, varid, data, start, count) 
+       status = pio_put_var(ncid, varid, start, count, data)
 
     endif   
 
@@ -1860,11 +1766,7 @@ contains
        call ncd_inqvid(ncid, varname, varid, vardesc, readvar=varpresent)
        if (varpresent) then
           data   = ' '
-          !YDT status = pio_get_var(ncid, varid, data)
-          status = nf90_get_var(ncid%fh, varid, data)
-             !YDT
-             if ( status /= NF90_NOERR .and. masterproc) & 
-                  write(iulog,*) trim(subname), ' nf90_get_var error, var=', trim(varname), ' status=', trim(nf90_strerror(status))
+          status = pio_get_var(ncid, varid, data)
        endif
        if (present(readvar)) readvar = varpresent
 
@@ -1878,8 +1780,7 @@ contains
           count(1) = len(data)
           count(2) = size(data)
           count(3) = 1
-          !YDT status = pio_put_var(ncid, varid, start, count, data)
-          status = nf90_put_var(ncid%fh, varid, data, start, count) 
+          status = pio_put_var(ncid, varid, start, count, data)
        else
           status = pio_put_var(ncid, varid, data)
        end if
@@ -1894,7 +1795,7 @@ contains
 ! !IROUTINE: ncd_io_char_var3_nf
 !
 ! !INTERFACE:
-  subroutine ncd_io_char_var3_nf(varname, data, flag, ncid, readvar, nt) 
+  subroutine ncd_io_char_var3_nf(varname, data, flag, ncid, readvar, nt )
 !
 ! !DESCRIPTION:
 ! netcdf I/O of global character array
@@ -1927,11 +1828,7 @@ contains
        call ncd_inqvid(ncid, varname, varid, vardesc, readvar=varpresent)
        if (varpresent) then
           data   = ' '
-          !YDT status = pio_get_var(ncid, varid, data)
-          status = nf90_get_var(ncid%fh, varid, data)
-             !YDT
-             if ( status /= NF90_NOERR .and. masterproc) & 
-                  write(iulog,*) trim(subname), ' nf90_get_var error, var=', trim(varname), ' status=', trim(nf90_strerror(status))
+          status = pio_get_var(ncid, varid, data)
        endif
        if (present(readvar)) readvar = varpresent
 
@@ -1945,8 +1842,7 @@ contains
           count(2) = size(data,dim=1)
           count(3) = size(data,dim=2)
           count(4) = 1
-          !YDT status = pio_put_var(ncid, varid, start, count, data)
-          status = nf90_put_var(ncid%fh, varid, data,  start, count) 
+          status = pio_put_var(ncid, varid, start, count, data)
        else
           status = pio_put_var(ncid, varid, data)
        end if
@@ -2042,15 +1938,9 @@ contains
     type(iodesc_plus_type) , pointer  :: iodesc_plus
     type(var_desc_t)                  :: vardesc
     character(len=*),parameter :: subname='ncd_io_int_var1' ! subroutine name
-    !YDT buff for 2d data
-    integer          , allocatable   :: buf(:)                ! global grid data
-    integer           :: len, lindex           ! lenth of global grid data , and land index
-    integer           :: lb1, ub1
 !-----------------------------------------------------------------------
 
     clmlevel = dim1name
-    lb1 = lbound(data, dim=1)
-    ub1 = ubound(data, dim=1)
 
     if (masterproc .and. debug > 1) then
        write(iulog,*) subname//' ',trim(flag),' ',trim(varname),' ',trim(clmlevel)
@@ -2060,7 +1950,7 @@ contains
 
        call ncd_inqvid(ncid, varname, varid, vardesc, readvar=varpresent)
        if (varpresent) then
-          if (single_column) then  ! YDT not supported 
+          if (single_column) then
              start(:) = 1
              count(:) = 1
              call scam_field_offsets(ncid,clmlevel,vardesc,start,count)
@@ -2077,58 +1967,25 @@ contains
              end if
              status = pio_get_var(ncid, varid, start, count, data)
           else
-             !YDT status = pio_inq_varndims(ncid, vardesc, ndims)
-             !YDT status = pio_inq_vardimid(ncid, vardesc, dids)
-             !YDT status = pio_inq_dimname(ncid,dids(ndims),dimname)
-             status = nf90_inquire_variable(ncid%fh, vardesc%varid, ndims=ndims)
-             status = nf90_inquire_variable(ncid%fh, vardesc%varid, dimids=dids)
-             status = nf90_inquire_dimension(ncid%fh,dids(ndims),name=dimname)
+             status = pio_inq_varndims(ncid, vardesc, ndims)
+             status = pio_inq_vardimid(ncid, vardesc, dids)
+             status = pio_inq_dimname(ncid,dids(ndims),dimname)
              if ('time' == trim(dimname)) then
                 ndims_iod = ndims - 1
              else
                 ndims_iod = ndims
              end if
-             start=1
-             count=0
-             len=1
              do n = 1,ndims_iod
-                !YDT status = pio_inq_dimlen(ncid,dids(n),dims(n))
-                status = nf90_inquire_dimension(ncid%fh,dids(n),len=dims(n))
-                start(n) = 1 
-                count(n)=dims(n) 
-                len=len*count(n)
+                status = pio_inq_dimlen(ncid,dids(n),dims(n))
              enddo
-             allocate(buf(len))   !YDT
-             !YDT call ncd_getiodesc(ncid, clmlevel, ndims_iod, dims(1:ndims_iod), dids(1:ndims_iod), &
-             !YDT      PIO_INT, iodnum)
-             !iodesc_plus => iodesc_list(iodnum)
+             call ncd_getiodesc(ncid, clmlevel, ndims_iod, dims(1:ndims_iod), dids(1:ndims_iod), &
+                  PIO_INT, iodnum)
+             iodesc_plus => iodesc_list(iodnum)
              if (present(nt)) then
-               !YDT call pio_setframe(vardesc, int(nt,kind=PIO_Offset))
+                call pio_setframe(vardesc, int(nt,kind=PIO_Offset))
              end if
-             !YDT call pio_read_darray(ncid, vardesc, iodesc_plus%iodesc, data, status)
-             status = nf90_get_var(ncid%fh, vardesc%varid, buf, start=start(1:n), count=count(1:n))
-             !YDT
-             if ( status /= NF90_NOERR .and. masterproc) & 
-                  write(iulog,*) trim(subname), ' nf90_get_var error, var=', trim(varname), ' status=', trim(nf90_strerror(status))
-
-           !YDT
-           if (trim(clmlevel) .eq. 'lndgrid') then
-
-            do n = 1, len
-                lindex = ldecomp%glo2gdc(n)
-                if (lindex .ge. lbound(data,dim=1) .and. lindex .le. ubound(data,dim=1) ) data(lindex) = buf(n)
-            end do
-
-           else
-
-             do n = lb1, ub1
-                data(n) = buf(n)
-             end do
-             
-           end if
-           deallocate(buf) 
-
-         end if
+             call pio_read_darray(ncid, vardesc, iodesc_plus%iodesc, data, status)
+          end if
        end if
        if (present(readvar)) readvar = varpresent
 
@@ -2221,7 +2078,6 @@ contains
 
     if (flag == 'read') then
 
-       !YDT ncd_inqvid de-pio'd 
        call ncd_inqvid(ncid, varname, varid, vardesc, readvar=varpresent)
        if (varpresent) then
           allocate( idata(size(data)) ) 
@@ -2358,24 +2214,13 @@ contains
     type(iodesc_plus_type) , pointer  :: iodesc_plus
     type(var_desc_t)                  :: vardesc
     character(len=*),parameter :: subname='ncd_io_real_var1' ! subroutine name
-    !YDT buff for 2d data
-    real(r8)        , allocatable   :: buf(:)                ! global grid data 
-    integer           :: len, lindex           ! lenth of global grid data , and land index 
-    integer           :: lb1, ub1 
-     
 !-----------------------------------------------------------------------
 
     clmlevel = dim1name
-    lb1 = lbound(data, dim=1)
-    ub1 = ubound(data, dim=1)
 
     if (masterproc .and. debug > 1) then
        write(iulog,*) trim(subname),' ',trim(flag),' ',trim(varname),' ',trim(clmlevel)
     endif
-
-#ifdef YDT_DEBUG
-    write(iulog,*) trim(subname), " iam=", iam, " lb1=", lb1, " ub1=", ub1
-#endif
 
     if ( present(cnvrtnan2fill) )then
        if (.not. cnvrtnan2fill) then
@@ -2386,13 +2231,8 @@ contains
     if (flag == 'read') then
 
        call ncd_inqvid(ncid, varname, varid, vardesc, readvar=varpresent)
-             !YDT
-#ifdef YDT_DEBUG
-             if ( masterproc) & 
-                  write(iulog,*) trim(subname), ' ncd_inqvid status: ', trim(varname), ' present=', varpresent 
-#endif
        if (varpresent) then
-          if (single_column) then  !YDT not supported for now
+          if (single_column) then
              start(:) = 1
              count(:) = 1
              call scam_field_offsets(ncid,clmlevel,vardesc,start,count)
@@ -2409,84 +2249,25 @@ contains
              end if
              status = pio_get_var(ncid, varid, start, count, data)
           else
-             !YDT status = pio_inq_varndims(ncid, vardesc, ndims)
-             !YDT status = pio_inq_vardimid(ncid,vardesc, dids)
-             !YDT status = pio_inq_dimname(ncid,dids(ndims),dimname)
-             status = nf90_inquire_variable(ncid%fh, vardesc%varid, ndims=ndims)
-
-#ifdef YDT_DEBUG
-             if ( masterproc) & 
-                  write(iulog,*) trim(subname), ' nf90_inquire_variable1 status: ', trim(varname), ' status=', status 
-#endif
-             status = nf90_inquire_variable(ncid%fh, vardesc%varid, dimids=dids)
-#ifdef YDT_DEBUG
-             if ( masterproc) & 
-                  write(iulog,*) trim(subname), ' nf90_inquire_variable2 status: ', trim(varname), ' status=', status 
-#endif
-             status = nf90_inquire_dimension(ncid%fh,dids(ndims),name=dimname)
-               !YDT
-#ifdef YDT_DEBUG
-               if ( masterproc) & 
-                    write(iulog,*) trim(subname), ' nf90_inquire_dimension1, dimname=', trim(dimname), ' ndims=', ndims, ' status=', status 
-#endif
-
+             status = pio_inq_varndims(ncid, vardesc, ndims)
+             status = pio_inq_vardimid(ncid,vardesc, dids)
+             status = pio_inq_dimname(ncid,dids(ndims),dimname)
              if ('time' == trim(dimname)) then
                 ndims_iod = ndims - 1
              else
                 ndims_iod = ndims
              end if
-             start=1
-             count=0
-             len=1
              do n = 1,ndims_iod
-                !YDT status = pio_inq_dimlen(ncid,dids(n),dims(n))
-                status = nf90_inquire_dimension(ncid%fh,dids(n),len=dims(n))
-                start(n)=1
-                count(n)=dims(n) 
-                len=len*count(n) 
-#ifdef YDT_DEBUG
-                 !YDT
-                 if ( masterproc) & 
-                  write(iulog,*) trim(subname), ' nf90_inquire_dimension2 n=', n, ' dims(n)=', dims(n), ' status=', status 
-#endif
+                status = pio_inq_dimlen(ncid,dids(n),dims(n))
              enddo
-             allocate(buf(len))   !YDT 
-
-             !YDT call ncd_getiodesc(ncid, clmlevel, ndims_iod, dims(1:ndims_iod), dids(1:ndims_iod), &
-             !YDT     PIO_DOUBLE, iodnum)
-             !YDT iodesc_plus => iodesc_list(iodnum)
+             call ncd_getiodesc(ncid, clmlevel, ndims_iod, dims(1:ndims_iod), dids(1:ndims_iod), &
+                  PIO_DOUBLE, iodnum)
+             iodesc_plus => iodesc_list(iodnum)
              if (present(nt)) then
-               !YDT  call pio_setframe(vardesc, int(nt,kind=PIO_Offset))
+                call pio_setframe(vardesc, int(nt,kind=PIO_Offset))
              end if
-
-             !YDT call pio_read_darray(ncid, vardesc, iodesc_plus%iodesc, data, status)
-             status = nf90_get_var(ncid%fh, vardesc%varid, buf, start=start(1:ndims_iod), count=count(1:ndims_iod)) 
-#ifdef YDT_DEBUG
-             write(iulog,*) trim(subname), ' dimension of data, cpu=', iam, ' lower=', lbound(data), ' upper=', ubound(data) 
-#endif
-             !YDT
-             if ( status /= NF90_NOERR .and. masterproc) then  
-                  write(iulog,*) trim(subname), ' nf90_get_var error, var=', trim(varname), ' status=', trim(nf90_strerror(status))
-             end if 
- 
-         !YDT
-           if (trim(clmlevel) .eq. 'lndgrid') then 
-           
-             do n = 1, len 
-                lindex = ldecomp%glo2gdc(n)
-                if (lindex .ge. lbound(data,dim=1) .and. lindex .le. ubound(data,dim=1) ) data(lindex) = buf(n)  
-             end do 
-
-           else 
-
-             do n = lb1, ub1 
-                data(n) = buf(n) 
-             end do 
-
-           end if 
-           deallocate(buf) 
+             call pio_read_darray(ncid, vardesc, iodesc_plus%iodesc, data, status)
           end if
-
           if ( present(cnvrtnan2fill) )then
              do n = lbound(data,dim=1), ubound(data,dim=1)
                 if ( data(n) == spval )then
@@ -2574,7 +2355,7 @@ contains
     integer           :: ndims      ! ndims total for var
     integer           :: ndims_iod  ! ndims iodesc for var
     integer           :: varid      ! varid
-    integer           :: n, j         ! index      
+    integer           :: n          ! index      
     integer           :: dims(4)    ! dim sizes       
     integer           :: dids(4)    ! dim ids
     integer           :: iodnum     ! iodesc num in list
@@ -2586,9 +2367,6 @@ contains
     type(iodesc_plus_type) , pointer  :: iodesc_plus
     type(var_desc_t)                  :: vardesc
     character(len=*),parameter :: subname='ncd_io_int_var2' ! subroutine name
-    !YDT buff for 3d data (nx*ny, nz) 
-    integer          , allocatable   :: buf(:, :)                ! global grid data
-    integer           :: len, lindex           ! lenth of global grid data , and land index
 !-----------------------------------------------------------------------
 
     clmlevel = dim1name      
@@ -2601,7 +2379,7 @@ contains
        
        call ncd_inqvid(ncid, varname, varid, vardesc, readvar=varpresent)
        if (varpresent) then
-          if (single_column) then  ! not supported 
+          if (single_column) then
              start(:) = 1
              count(:) = 1
              call scam_field_offsets(ncid, clmlevel, vardesc, start, count)
@@ -2620,12 +2398,9 @@ contains
                 end if
              end if
           else
-             !YDT status = pio_inq_varndims(ncid, vardesc, ndims)
-             !YDT status = pio_inq_vardimid(ncid, vardesc, dids)
-             !YDT status = pio_inq_dimname(ncid, dids(ndims), dimname)
-             status = nf90_inquire_variable(ncid%fh, vardesc%varid, ndims=ndims)
-             status = nf90_inquire_variable(ncid%fh, vardesc%varid, dimids=dids)
-             status = nf90_inquire_dimension(ncid%fh,dids(ndims),name=dimname)
+             status = pio_inq_varndims(ncid, vardesc, ndims)
+             status = pio_inq_vardimid(ncid, vardesc, dids)
+             status = pio_inq_dimname(ncid, dids(ndims), dimname)
              if (ndims == 0) then
                 write(iulog,*) trim(subname),' ERROR: ndims must be greater than 0'
                 call endrun()
@@ -2635,39 +2410,16 @@ contains
              else
                 ndims_iod = ndims
              end if
-             start=1
-             count=0
              do n = 1,ndims_iod
-                !YDT status = pio_inq_dimlen(ncid,dids(n),dims(n))
-                status = nf90_inquire_dimension(ncid%fh,dids(n),len=dims(n))
-                start(n)=1
-                count(n)=dims(n) 
+                status = pio_inq_dimlen(ncid,dids(n),dims(n))
              enddo
-             len=count(1)*count(2)
-             !YDT call ncd_getiodesc(ncid, clmlevel, ndims_iod, dims(1:ndims_iod), dids(1:ndims_iod), &
-             !YDT         PIO_INT, iodnum)
-             !YDT iodesc_plus => iodesc_list(iodnum)
+             call ncd_getiodesc(ncid, clmlevel, ndims_iod, dims(1:ndims_iod), dids(1:ndims_iod), &
+                     PIO_INT, iodnum)
+             iodesc_plus => iodesc_list(iodnum)
              if (present(nt)) then
-                !YDT call pio_setframe(vardesc, int(nt,kind=PIO_Offset))
+                call pio_setframe(vardesc, int(nt,kind=PIO_Offset))
              end if
-             !YDT call pio_read_darray(ncid, vardesc, iodesc_plus%iodesc, data, status)
-
-             allocate(buf(len, count(3)) )
-             status=nf90_get_var(ncid%fh, vardesc%varid, buf, start=start(1:3), count=count(1:3)) 
-             !YDT
-             if ( status /= NF90_NOERR .and. masterproc) & 
-                  write(iulog,*) trim(subname), ' nf90_get_var error, var=', trim(varname), ' status=', trim(nf90_strerror(status))
-
-             do n = 1, len  !YDT
-                   lindex = ldecomp%glo2gdc(n)
-                   if (lindex .ge. lbound(data,dim=1) .and. lindex .le. ubound(data,dim=1) ) then
-                        do j = 1, count(3) 
-                           data(lindex, j) = buf(n, j)
-                        end do
-                   end if
-             end do
-             deallocate(buf)
-
+             call pio_read_darray(ncid, vardesc, iodesc_plus%iodesc, data, status)
           end if
        end if
        if (present(readvar)) readvar = varpresent
@@ -2766,12 +2518,13 @@ contains
     type(var_desc_t)                  :: vardesc
     character(len=*),parameter :: subname='ncd_io_real_var2' ! subroutine name
     logical           :: found = .false.
-    !YDT buff for 3d data: (nx*ny, nz) 
-    real(r8)          , allocatable   :: buf(:, :)                ! global grid data
-    integer           :: len, lenz, lindex           ! lenth of global grid data , and land index
 !-----------------------------------------------------------------------
 
     clmlevel = dim1name      
+
+    if (masterproc .and. debug > 1) then
+       write(iulog,*) trim(subname),' ',trim(flag),' ',trim(varname),' ',trim(clmlevel)
+    end if
 
     if ( present(cnvrtnan2fill) )then
        if (.not. cnvrtnan2fill) then
@@ -2789,19 +2542,11 @@ contains
        allocate(temp(lb2:ub2,lb1:ub1))
     end if
 
-    if (masterproc .and. debug > 1) then
-       write(iulog,*) trim(subname),' ',trim(flag),' ',trim(varname),' ',trim(clmlevel)
-    end if
-#ifdef YDT_DEBUG
-    write(iulog,*) trim(subname), " iam=", iam, " lb1=", lb1, " ub1=", ub1, " lb2=", lb2, " ub2=", ub2 
-#endif
-
-
     if (flag == 'read') then
 
        call ncd_inqvid(ncid, varname, varid, vardesc, readvar=varpresent)
        if (varpresent) then
-          if (single_column) then   !YDT unsuported
+          if (single_column) then
              start(:) = 1
              count(:) = 1
              call scam_field_offsets(ncid, clmlevel, vardesc, start, count)
@@ -2832,12 +2577,9 @@ contains
              status = pio_get_var(ncid, vardesc, start, count, data)
              endif
           else
-             !YDT status = pio_inq_varndims(ncid, vardesc, ndims)
-             !YDT status = pio_inq_vardimid(ncid,vardesc, dids)
-             !YDT status = pio_inq_dimname(ncid, dids(ndims), dimname)
-             status = nf90_inquire_variable(ncid%fh, vardesc%varid, ndims=ndims)
-             status = nf90_inquire_variable(ncid%fh, vardesc%varid, dimids=dids)
-             status = nf90_inquire_dimension(ncid%fh,dids(ndims),name=dimname)
+             status = pio_inq_varndims(ncid, vardesc, ndims)
+             status = pio_inq_vardimid(ncid,vardesc, dids)
+             status = pio_inq_dimname(ncid, dids(ndims), dimname)
              if (ndims == 0) then
                 write(iulog,*) trim(subname),' ERROR: ndims must be greater than 0'
                 call endrun()
@@ -2847,88 +2589,29 @@ contains
              else
                 ndims_iod = ndims
              end if
-             start=1
-             count=0
              do n = 1,ndims_iod
-                !YDT status = pio_inq_dimlen(ncid,dids(n),dims(n))
-                status = nf90_inquire_dimension(ncid%fh,dids(n),len=dims(n))
-                start(n)=1
-                count(n)=dims(n) 
-                !YDT
-                if (masterproc) & 
-                    write(iulog,*) trim(subname), ' n=', n, " count(n)=", count(n) 
-
+                status = pio_inq_dimlen(ncid,dids(n),dims(n))
              enddo
-             len=count(1)*count(2) 
-             lenz=count(3) 
-
              if (present(switchdim)) then
-             !YDT    call ncd_getiodesc(ncid, clmlevel, ndims_iod, dims(1:ndims_iod), dids(1:ndims_iod), &
-             !YDT         PIO_DOUBLE, iodnum, switchdim=.true.)
+                call ncd_getiodesc(ncid, clmlevel, ndims_iod, dims(1:ndims_iod), dids(1:ndims_iod), &
+                     PIO_DOUBLE, iodnum, switchdim=.true.)
              else
-             !YDT    call ncd_getiodesc(ncid, clmlevel, ndims_iod, dims(1:ndims_iod), dids(1:ndims_iod), &
-             !YDT         PIO_DOUBLE, iodnum)
+                call ncd_getiodesc(ncid, clmlevel, ndims_iod, dims(1:ndims_iod), dids(1:ndims_iod), &
+                     PIO_DOUBLE, iodnum)
              end if
-             !YDT iodesc_plus => iodesc_list(iodnum)
+             iodesc_plus => iodesc_list(iodnum)
              if (present(nt)) then
-               !YDT call pio_setframe(vardesc, int(nt,kind=PIO_Offset))
+                call pio_setframe(vardesc, int(nt,kind=PIO_Offset))
              end if
              if (present(switchdim)) then
-                allocate(buf(lb2:ub2, len))
-                !YDT call pio_read_darray(ncid, vardesc, iodesc_plus%iodesc, temp, status)
-                status=nf90_get_var(ncid%fh, vardesc%varid, buf, start=start(1:ndims_iod), count=count(1:ndims_iod)) 
-                !YDT
-                if ( status /= NF90_NOERR .and. masterproc) & 
-                    write(iulog,*) trim(subname), ' nf90_get_var error, var=', trim(varname), ' status=', trim(nf90_strerror(status))
-
-                if (trim(clmlevel) .eq. 'lndgrid') then  !YDT
-                  do n = 1, len  !YDT
-                      lindex = ldecomp%glo2gdc(n)
-                      if (lindex .ge. lbound(data,dim=1) .and. lindex .le. ubound(data,dim=1) ) then
-                           do j = lb2,ub2
-                              data(lindex, j) = buf(j, n)
-                           end do
-                      end if
-                   end do
-                else 
-                  do n = lb1, ub1  !YDT
-                      do j = lb2,ub2
-                          data(n, j) = buf(j, n)
-                      end do
-                   end do
-                endif 
-
-                deallocate(buf)
-
+                call pio_read_darray(ncid, vardesc, iodesc_plus%iodesc, temp, status)
+                do j = lb2,ub2
+                do i = lb1,ub1
+                   data(i,j) = temp(j,i) 
+                end do
+                end do
              else
-                allocate(buf(len, lb2:ub2))
-                !YDT call pio_read_darray(ncid, vardesc, iodesc_plus%iodesc, data, status)
-                status=nf90_get_var(ncid%fh, vardesc%varid, buf, start=start(1:ndims_iod), count=count(1:ndims_iod)) 
-                !YDT
-                if ( status /= NF90_NOERR .and. masterproc) & 
-                     write(iulog,*) trim(subname), ' nf90_get_var error, var=', trim(varname), ' status=', trim(nf90_strerror(status))
-
-                if (trim(clmlevel) .eq. 'lndgrid') then  !YDT
-                  do n = 1, len  !YDT
-                     lindex = ldecomp%glo2gdc(n)
-                     if (lindex .ge. lbound(data,dim=1) .and. lindex .le. ubound(data,dim=1) ) then 
-                          do j = lb2,ub2
-                             data(lindex, j) = buf(n, j)
-                          end do 
-                     end if 
-                  end do
-
-                else 
-
-                do n = lb1, ub1  !YDT
-                      do j = lb2,ub2
-                          data(n, j) = buf(n, j)
-                      end do
-                   end do
-
-                endif
-                deallocate(buf)
-
+                call pio_read_darray(ncid, vardesc, iodesc_plus%iodesc, data, status)
              end if
           end if
           if ( present(cnvrtnan2fill) )then
@@ -3186,7 +2869,7 @@ contains
     integer           :: ndims      ! ndims total for var
     integer           :: ndims_iod  ! ndims iodesc for var
     integer           :: varid      ! varid
-    integer           :: n, j, k    ! index      
+    integer           :: n          ! index      
     integer           :: dims(4)    ! dim sizes       
     integer           :: dids(4)    ! dim ids
     integer           :: iodnum     ! iodesc num in list
@@ -3196,9 +2879,6 @@ contains
     type(iodesc_plus_type) , pointer  :: iodesc_plus
     type(var_desc_t)                  :: vardesc
     character(len=*),parameter :: subname='ncd_io_real_var3' ! subroutine name
-    !YDT buff for 3d data: (nx*ny, nz, nz2)
-    real(r8)          , allocatable   :: buf(:, :, :)                ! global grid data
-    integer           :: len, lindex           ! lenth of global grid data , and land index
 !-----------------------------------------------------------------------
 
     clmlevel = dim1name      
@@ -3211,7 +2891,7 @@ contains
 
        call ncd_inqvid(ncid, varname, varid, vardesc, readvar=varpresent)
        if (varpresent) then
-          if (single_column) then   !YDT not supported
+          if (single_column) then
              start(:) = 1
              count(:) = 1
              call scam_field_offsets(ncid, clmlevel, vardesc, start, count)
@@ -3232,14 +2912,9 @@ contains
              end if
              status = pio_get_var(ncid, vardesc, start, count, data)
           else
-             !YDT status = pio_inq_varndims(ncid, vardesc, ndims)
-             !YDT status = pio_inq_vardimid(ncid, vardesc, dids)
-             !YDT status = pio_inq_dimname(ncid, dids(ndims), dimname)
-
-             status = nf90_inquire_variable(ncid%fh, vardesc%varid, ndims=ndims)
-             status = nf90_inquire_variable(ncid%fh, vardesc%varid, dimids=dids)
-             status = nf90_inquire_dimension(ncid%fh,dids(ndims),name=dimname)
-
+             status = pio_inq_varndims(ncid, vardesc, ndims)
+             status = pio_inq_vardimid(ncid, vardesc, dids)
+             status = pio_inq_dimname(ncid, dids(ndims), dimname)
              if (ndims == 0) then
                 write(iulog,*) trim(subname),' ERROR: ndims must be greater than 0'
                 call endrun()
@@ -3249,41 +2924,16 @@ contains
              else
                 ndims_iod = ndims
              end if
-             start=1
-             count=0
              do n = 1,ndims_iod
-                !YDT status = pio_inq_dimlen(ncid,dids(n),dims(n))
-                status = nf90_inquire_dimension(ncid%fh,dids(n),len=dims(n))
-                start(n)=1
-                count(n)=dims(n) 
+                status = pio_inq_dimlen(ncid,dids(n),dims(n))
              enddo
-             len=count(1)*count(2)
-             !YDT call ncd_getiodesc(ncid, clmlevel, ndims_iod, dims(1:ndims_iod), dids(1:ndims_iod), &
-             !YDT     PIO_DOUBLE, iodnum)
-             !YDT iodesc_plus => iodesc_list(iodnum)
+             call ncd_getiodesc(ncid, clmlevel, ndims_iod, dims(1:ndims_iod), dids(1:ndims_iod), &
+                  PIO_DOUBLE, iodnum)
+             iodesc_plus => iodesc_list(iodnum)
              if (present(nt)) then
-                !YDT call pio_setframe(vardesc, int(nt,kind=PIO_Offset))
+                call pio_setframe(vardesc, int(nt,kind=PIO_Offset))
              end if
-             n = ndims_iod
-             allocate(buf(len, count(3), count(4))) 
-             !YDT call pio_read_darray(ncid, vardesc, iodesc_plus%iodesc, data, status)
-             status=nf90_get_var(ncid%fh, vardesc%varid, buf, start=start(1:n), count=count(1:n)) 
-             !YDT
-             if ( status /= NF90_NOERR .and. masterproc) & 
-                  write(iulog,*) trim(subname), ' nf90_get_var error, var=', trim(varname), ' status=', trim(nf90_strerror(status))
-             
-                do n = 1, len  !YDT
-                   lindex = ldecomp%glo2gdc(n)
-                   if (lindex .ge. lbound(data,dim=1) .and. lindex .le. ubound(data,dim=1) ) then
-                        do k = 1, count(4) 
-                          do j = 1, count(3) 
-                           data(lindex, j, k) = buf(n, j, k)
-                          end do
-                        end do
-                   end if
-                end do
-                deallocate(buf)
-
+             call pio_read_darray(ncid, vardesc, iodesc_plus%iodesc, data, status)
           end if
        end if
        if (present(readvar)) readvar = varpresent
@@ -3366,7 +3016,7 @@ contains
 
        call ncd_inqvid(ncid, varname, varid, vardesc, readvar=varpresent)
        if (varpresent) then
-          if (single_column) then  ! YDT not supported 
+          if (single_column) then
              call scam_field_offsets(ncid,'undefined',vardesc, start,count, &
                                      found=found,posNOTonfile=posNOTonfile)
              if ( found )then
@@ -3375,10 +3025,7 @@ contains
                 status = pio_get_var(ncid, varid, data)
              end if
           else
-             !YDT status = pio_get_var(ncid, varid, data)
-             status = nf90_get_var(ncid%fh, varid, data)
-             if ( status /= NF90_NOERR .and. masterproc) &
-                  write(iulog,*) trim(subname), ' nf90_get_var error, var=', trim(varname), ' status=', trim(nf90_strerror(status))
+             status = pio_get_var(ncid, varid, data)
           endif
        endif
        if (present(readvar)) readvar = varpresent
@@ -3684,17 +3331,13 @@ contains
           ! names associated with that iodescriptor
           if (found) then
              do m = 1,ndims
-                !YDT status = PIO_inq_dimname(ncid,dimids(m),dimname_file)
-                !YDT status = PIO_inquire(ncid, ndimensions=ndims_file)
-                status = nf90_inquire_dimension(ncid%fh,dimids(m),name=dimname_file)
-                status = nf90_inquire(ncid%fh, ndimensions=ndims_file)
-
+                status = PIO_inq_dimname(ncid,dimids(m),dimname_file)
+                status = PIO_inquire(ncid, ndimensions=ndims_file)
                 if (iodesc_list(n)%dimids(m) > ndims_file) then 
                    found = .false.
                    exit
                 else
-                   !YDT status = PIO_inq_dimname(ncid,iodesc_list(n)%dimids(m),dimname_iodesc)
-                   status = nf90_inquire_dimension(ncid%fh,iodesc_list(n)%dimids(m),name=dimname_iodesc)
+                   status = PIO_inq_dimname(ncid,iodesc_list(n)%dimids(m),dimname_iodesc)
                    if (trim(dimname_file) .ne. trim(dimname_iodesc)) then
                       found = .false.
                       exit
@@ -3812,15 +3455,15 @@ contains
 
     deallocate(gsmOP)
 
-    !YDT call pio_initdecomp(pio_subsystem, baseTYPE, dims(1:ndims), compDOF, iodesc_list(iodnum)%iodesc)
+    call pio_initdecomp(pio_subsystem, baseTYPE, dims(1:ndims), compDOF, iodesc_list(iodnum)%iodesc)
 
     deallocate(compDOF)
 
-   !YDT iodesc_list(iodnum)%type  = xtype
-   !YDT iodesc_list(iodnum)%ndims = ndims
-   !YDT iodesc_list(iodnum)%dims  = 0
-   !YDT iodesc_list(iodnum)%dims(1:ndims)   = dims(1:ndims)
-   !YDT iodesc_list(iodnum)%dimids(1:ndims) = dimids(1:ndims)
+    iodesc_list(iodnum)%type  = xtype
+    iodesc_list(iodnum)%ndims = ndims
+    iodesc_list(iodnum)%dims  = 0
+    iodesc_list(iodnum)%dims(1:ndims)   = dims(1:ndims)
+    iodesc_list(iodnum)%dimids(1:ndims) = dimids(1:ndims)
 
 
   end subroutine ncd_getiodesc
