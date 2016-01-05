@@ -26,3 +26,12 @@
 *.exe
 *.out
 *.app
+
+# data files 
+*.1gd4r
+*.bin
+*.nc
+*.h5 
+*.hdf
+*.HDF
+

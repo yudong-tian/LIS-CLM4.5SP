@@ -1,0 +1,32 @@
+netcdf domain.T62.050609 {
+dimensions:
+	n = 18048 ;
+	ni = 192 ;
+	nj = 94 ;
+	nv = 4 ;
+variables:
+	double xc(nj, ni) ;
+		xc:long_name = "longitude of grid cell center" ;
+		xc:units = "degrees east" ;
+	double yc(nj, ni) ;
+		yc:long_name = "latitude of grid cell center" ;
+		yc:units = "degrees north" ;
+	double xv(nj, ni, nv) ;
+		xv:long_name = "longitude of grid cell verticies" ;
+		xv:units = "degrees east" ;
+	double yv(nj, ni, nv) ;
+		yv:long_name = "latitude of grid cell verticies" ;
+		yv:units = "degrees north" ;
+	int mask(nj, ni) ;
+		mask:long_name = "domain mask" ;
+		mask:units = "unitless" ;
+	double area(nj, ni) ;
+		area:long_name = "area of grid cell in radians squared" ;
+		area:units = "area" ;
+
+// global attributes:
+		:title = "domain data: CAM T62 grid" ;
+		:conventions = "CCSM3.0 data model domain description" ;
+		:source = "/fis/cgd/cseg/csm/mapping/maps/map_T62_to_gx3v6_aave_da_041220.nc" ;
+		:history = "File created: 2005-06-09 13:43:49" ;
+}
