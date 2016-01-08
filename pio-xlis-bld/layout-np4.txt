@@ -1,0 +1,31 @@
+  4 pes participating in computation for CLM
+
+-----------------------------------
+
+NODE#  NAME
+(    0)  discover25
+(    1)  discover25
+(    2)  discover25
+(    3)  discover25
+ 
+
+  Surface Grid Characteristics
+    longitude points          =          288
+    latitude points           =          192
+    total number of gridcells =        20975
+    total number of landunits =        35204
+    total number of columns   =        66470
+    total number of pfts      =       312054
+  Decomposition Characteristics
+    clumps per process        =            1
+
+ 		Total (land) gridcells		Total landunits			Total columns			Total pfts 
+---------------------------------------------------------------------------------------------------------------------------------
+			20975			35204				66470				312054
+ 
+ proc  beg-gridcell   end-gridcell	beg-landunit	end-landunit	beg-column	end-column 	beg-pft		end-pft 	
+---------------------------------------------------------------------------------------------------------------------------------
+  0	1		5245	    	1		8776		1		16744		1		77048	
+  1	5246		10490		8777		17535		16745		33626		77049		153914 
+  2	10491 		15735		17536		26255		33627		49579		153915		231371
+  3	15736		20975		26256		35204		49580		66470		231372		312054
