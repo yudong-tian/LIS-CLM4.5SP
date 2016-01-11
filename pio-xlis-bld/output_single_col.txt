@@ -1,15 +1,14 @@
 
 discover25:~/CESM/LIS-CLM4.5SP/pio-xlis-bld$ mpirun -np 1 ./single_col
 
-
  ==================  Single grid decomposition ================================
-  g  nlandunits  ncolumns  npfts
+  g       gindex   ic    ir   lat   lon   nlandunits  ncolumns  npfts
  ---------------------------------------------------------------------------
-  12762      3      7     23
+  12762  38517    213    134   35.34  265.00      3      7     23
 
-  g    gindex    luni    lunf   coli  colf   pfti   pftf  npfts   lat    lon
+  g    gindex    luni    lunf   coli  colf   pfti   pftf
  ---------------------------------------------------------------------------
-  12762  38517  19878  19880  38884  38890 158708 158730     23   35.34  265.00
+  12762  38517  19878  19880  38884  38890 158708 158730
 
   l    gridcell  wtgcell  coli   colf   pfti   pftf     npfts   itype_lun
  ---------------------------------------------------------------------------

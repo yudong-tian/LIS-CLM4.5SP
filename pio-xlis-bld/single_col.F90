@@ -52,7 +52,7 @@
     type(mct_gGrid),         pointer :: dom_s
     type(seq_infodata_type), pointer :: infodata     ! CESM driver level info data
     integer  :: lsize                                ! size of attribute vector
-    integer  :: g, l, c, p, i,j                                ! indices
+    integer  :: g, l, c, p, i,j, nc                  ! indices
     integer  :: dtime_sync                           ! coupling time-step from the input synchronization clock
     integer  :: dtime_clm                            ! clm time-step
     logical  :: exists                               ! true if file exists
@@ -183,15 +183,19 @@
 
      write(*, *) "==================  Single grid decomposition ================================" 
      g=12762
-     write(*, *) " g  nlandunits  ncolumns  npfts" 
+     nc = 288  ! number of columns in the original grid 
+     write(*, *) " g       gindex   ic    ir   lat   lon   nlandunits  ncolumns  npfts" 
      write(*, *) "---------------------------------------------------------------------------" 
-     write(*, '(4I7)') g, grc%nlandunits(g), grc%ncolumns(g), grc%npfts(g) 
+     write(*, '(4I7, 2F8.2, 3I7)') g, grc%gindex(g), mod(grc%gindex(g), nc), &
+                  (grc%gindex(g) - mod(grc%gindex(g), nc) )/nc + 1, & 
+                 grc%latdeg(g), grc%londeg(g), & 
+            grc%nlandunits(g), grc%ncolumns(g), grc%npfts(g) 
  
      write(*, *) 
-     write(*, *) " g    gindex    luni    lunf   coli  colf   pfti   pftf  npfts   lat    lon" 
+     write(*, *) " g    gindex    luni    lunf   coli  colf   pfti   pftf" 
      write(*, *) "---------------------------------------------------------------------------" 
-     write(*, '(9I7, 2F8.2)') g, grc%gindex(g), grc%luni(g), grc%lunf(g), grc%coli(g), grc%colf(g), &
-                          grc%pfti(g), grc%pftf(g), grc%npfts(g), grc%latdeg(g), grc%londeg(g) 
+     write(*, '(9I7)') g, grc%gindex(g), grc%luni(g), grc%lunf(g), grc%coli(g), grc%colf(g), &
+                          grc%pfti(g), grc%pftf(g)
 
      write(*, *) 
      write(*, *) " l    gridcell  wtgcell  coli   colf   pfti   pftf     npfts   itype_lun" 
