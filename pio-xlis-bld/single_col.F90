@@ -198,27 +198,28 @@
                           grc%pfti(g), grc%pftf(g)
 
      write(*, *) 
-     write(*, *) " l    gridcell  wtgcell  coli   colf   pfti   pftf     npfts   itype_lun" 
+     write(*, *) " l    gridcell  wtgcell%  coli   colf   pfti   pftf     npfts   itype_lun" 
      write(*, *) "---------------------------------------------------------------------------" 
      do l=grc%luni(g), grc%lunf(g)      
-       write(*, '(2I7, F10.2, 6I7)') l, lun%gridcell(l), lun%wtgcell(l), lun%coli(l), lun%colf(l), &
+       write(*, '(2I7, F10.2, 6I7)') l, lun%gridcell(l), lun%wtgcell(l)*100, lun%coli(l), lun%colf(l), &
                                         lun%pfti(l), lun%pftf(l), lun%npfts(l), lun%itype(l) 
      end do 
                             
      write(*, *) 
-     write(*, *) " c    landunit  wtlunit  gridcell  wtgcell  pfti   pftf  npfts   itype_col" 
+     write(*, *) " c    landunit  wtlunit%  gridcell  wtgcell%  pfti   pftf  npfts   itype_col" 
      write(*, *) "---------------------------------------------------------------------------" 
      do c=grc%coli(g), grc%colf(g)      
-       write(*, '(2I7, F10.2, I7, F10.2, 3X, 4I7)') c, col%landunit(c), col%wtlunit(c), col%gridcell(c), & 
-                 col%wtgcell(c), col%pfti(c), col%pftf(c), col%npfts(c), col%itype(c) 
+       write(*, '(2I7, F10.2, I7, F10.2, 3X, 4I7)') c, col%landunit(c), col%wtlunit(c)*100, col%gridcell(c), & 
+                 col%wtgcell(c)*100, col%pfti(c), col%pftf(c), col%npfts(c), col%itype(c) 
      end do 
     
      write(*, *) 
-     write(*, *) " p    column     wtcol  landunit  wtlunit  gridcell  wtgcell  itype_pft" 
+     write(*, *) " p    column     wtcol%  landunit  wtlunit%  gridcell  wtgcell%  itype_pft" 
      write(*, *) "---------------------------------------------------------------------------" 
      do p=grc%pfti(g), grc%pftf(g)      
-       write(*, '(2I7, F10.2, I7, F10.2, I7, F10.2, I7)') p, pft%column(p), pft%wtcol(p), pft%landunit(p), pft%wtlunit(p), &
-                                        pft%gridcell(p), pft%wtgcell(p), pft%itype(p) 
+       write(*, '(2I7, F10.2, I7, F10.2, I7, F10.2, I7)') p, pft%column(p), pft%wtcol(p)*100, pft%landunit(p), &
+                                        pft%wtlunit(p)*100, &
+                                        pft%gridcell(p), pft%wtgcell(p)*100, pft%itype(p) 
      end do 
 
      write(*, *) "===========================================================================" 
