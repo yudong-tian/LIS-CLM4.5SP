@@ -9,14 +9,41 @@
     use clm_time_manager , only : get_nstep, get_step_size, set_timemgr_init, &
                                   set_nextsw_cday
     use clmtype
-    use clm_atmlnd       , only : clm_l2a
+    use clm_atmlnd       , only : clm_l2a, clm_a2l
     use clm_glclnd       , only : clm_s2x
     use clm_initializeMod, only : initialize1, initialize2
     use clm_varctl       , only : finidat,single_column, set_clmvarctl, iulog, noland, &
                                   inst_index, inst_suffix, inst_name, &
                                   create_glacier_mec_landunit 
+
+! CLM driver related 
     use clm_driver      ,only : clm_drv
     use clm_varorb       , only : eccen, obliqr, lambm0, mvelpp
+    use filterMod           , only : filter
+    use dynlandMod          , only : dynland_hwcontent
+  use inicPerpMod         , only : inicPerp
+  use accFldsMod          , only : updateAccFlds
+  use clm_driverInitMod   , only : clm_driverInit
+  use BalanceCheckMod     , only : BeginWaterBalance, BalanceCheck
+  use SurfaceRadiationMod , only : SurfaceRadiation
+  use Hydrology1Mod       , only : Hydrology1
+  use Hydrology2Mod       , only : Hydrology2
+  use SLakeFluxesMod   , only : SLakeFluxes
+  use SLakeTemperatureMod, only : SLakeTemperature
+  use SLakeHydrologyMod, only : SLakeHydrology
+  use Biogeophysics1Mod   , only : Biogeophysics1
+  use BareGroundFluxesMod , only : BareGroundFluxes
+  use CanopyFluxesMod     , only : CanopyFluxes
+  use Biogeophysics2Mod   , only : Biogeophysics2
+  use SurfaceAlbedoMod    , only : SurfaceAlbedo
+  use pft2colMod          , only : pft2col
+  use ActiveLayerMod      , only : alt_calc
+  use UrbanMod            , only : UrbanAlbedo, UrbanRadiation, UrbanFluxes
+  use clm_atmlnd          , only : clm_map2gcell
+  use SNICARMod           , only : SnowAge_grain
+  use STATICEcosysDynMod  , only : EcosystemDyn
+
+    use clm_varcon          , only : zlnd, isturb
     use controlMod       , only : control_setNL
     use decompMod        , only : get_proc_bounds, get_clump_bounds
     use domainMod        , only : ldomain
@@ -108,6 +135,9 @@
     character(len=32)            :: rdate       ! date char string for restart file names
 
     integer :: num_inst_total = 1  ! land only
+
+  integer , pointer :: clandunit(:) ! landunit index associated with each column
+  integer , pointer :: itypelun(:)  ! landunit type
 !-----------------------------------------------------------------------
 
     LNDID = 1
@@ -151,6 +181,8 @@
                            single_column_in=single_column, scmlat_in=scmlat,       &
                            scmlon_in=scmlon, nsrest_in=nsrest, version_in=version, &
                            hostname_in=hostname, username_in=username)
+
+    doalb = .false.   !YDT  not do alb for now
 
     write(*, *) "set_clmvarctl() done ..."
 
@@ -224,12 +256,233 @@
 
      write(*, *) "===========================================================================" 
 
+     write(*, *) 
+     write(*, *) "================== Filter Settings ========================================" 
+     write(*, *) " num_soilc num_soilp num_hydroc num_lakec num_lakep num_nolakec num_nolakep" 
+     write(*, '(7I9)') filter(1)%num_soilc, filter(1)%num_soilp, filter(1)%num_hydrologyc, &
+                       filter(1)%num_lakec, filter(1)%num_lakep, filter(1)%num_nolakec, filter(1)%num_nolakep
+     write(*, *) "===========================================================================" 
 
 
-    ! time loop
-    ! if ( .not. end_of_run() ) then
-      call clm_drv(doalb, nextsw_cday, declinp1, declin, rstwr, nlend, rdate)
-    ! end if
+    !===========  ranges for a single grid box  ------------------------------------
+     nc = 1    ! clump index: always 1 for now 
 
+     begg = g
+     endg = g
+
+     begl=grc%luni(g)
+     endl=grc%lunf(g)      
+
+     begc=grc%coli(g)
+     endc=grc%colf(g)      
+
+     begp=grc%pfti(g)
+     endp=grc%pftf(g)      
+     
+
+
+     ! Assign local pointers to derived subtypes components (column-level)
+     itypelun            => lun%itype
+     clandunit           =>col%landunit  
+
+    !===========  grid-level initialization  ------------------------------------
+     
+     ! initialize heat and water content and dynamic balance fields to zero, for the single grid box 
+        gwf%qflx_liq_dynbal(g) = 0._r8
+        gws%gc_liq2(g)         = 0._r8
+        gws%gc_liq1(g)         = 0._r8
+        gwf%qflx_ice_dynbal(g) = 0._r8
+        gws%gc_ice2(g)         = 0._r8
+        gws%gc_ice1(g)         = 0._r8
+        gef%eflx_dynbal(g)     = 0._r8
+        ges%gc_heat2(g)        = 0._r8
+        ges%gc_heat1(g)        = 0._r8
+
+    ! initialize input for the original clm_drv arguments
+    ! subroutine clm_drv(doalb, nextsw_cday, declinp1, declin, rstwr, nlend, rdate)
+    ! logical ,        intent(in) :: doalb       ! true if time for surface albedo calc
+    ! real(r8),        intent(in) :: nextsw_cday ! calendar day for nstep+1
+    ! real(r8),        intent(in) :: declinp1    ! declination angle for next time step
+    ! real(r8),        intent(in) :: declin      ! declination angle for current time step
+    ! logical,         intent(in) :: rstwr       ! true => write restart file this step
+    ! logical,         intent(in) :: nlend       ! true => end of run on this step
+    ! character(len=*),intent(in) :: rdate       ! restart file time stamp for name
+ 
+    doalb = .false. 
+    nextsw_cday = -999 ! to be fixed 
+    declinp1 = 0.0
+    declin = 0.0
+    rstwr = .false.  ! writing restart or not 
+    nlend = .false.  ! not end of run 
+    rdate = ""    ! not save restart for now
+
+    ! Now ripping components out of clm_drv(). Skip 'CN' and 'CNDV" components for now 
+    ! forget DUST and VOC too 
+
+    !--- get initial heat,water content ---
+       call dynland_hwcontent( begg, endg, gws%gc_liq1(begg:endg), &
+                               gws%gc_ice1(begg:endg), ges%gc_heat1(begg:endg) )
+
+
+    ! Determine decomp vertical profiles
+        call alt_calc(begc, endc, filter(nc)%num_soilc, filter(nc)%soilc)
+
+    ! Initialize the mass balance checks: water
+     call BeginWaterBalance(begc, endc, begp, endp, &
+          filter(nc)%num_nolakec, filter(nc)%nolakec, filter(nc)%num_lakec, filter(nc)%lakec, &
+          filter(nc)%num_hydrologyc, filter(nc)%hydrologyc)
+
+     ! Initialize variables from previous time step and
+     ! Determine canopy interception and precipitation onto ground surface.
+     ! Determine the fraction of foliage covered by water and the fraction
+     ! of foliage that is dry and transpiring. Initialize snow layer if the
+     ! snow accumulation exceeds 10 mm.
+
+     pcf%cisun_z(begp:endp,:) = -999._r8
+     pcf%cisha_z(begp:endp,:) = -999._r8
+
+     ! initialize declination for current timestep
+     do c = begc,endc
+        cps%decl(c) = declin
+     end do
+
+     call clm_driverInit(begc, endc, begp, endp, &
+          filter(nc)%num_nolakec, filter(nc)%nolakec, filter(nc)%num_lakec, filter(nc)%lakec)
+
+     call Hydrology1(begc, endc, begp, endp, &
+                     filter(nc)%num_nolakec, filter(nc)%nolakec, &
+                     filter(nc)%num_nolakep, filter(nc)%nolakep)
+
+
+     ! Surface Radiation for non-urban columns
+
+     call SurfaceRadiation(begp, endp, &
+                           filter(nc)%num_nourbanp, filter(nc)%nourbanp)
+
+     ! Surface Radiation for urban columns
+
+     call UrbanRadiation(nc, begl, endl, begc, endc, begp, endp, &
+                         filter(nc)%num_nourbanl, filter(nc)%nourbanl, &
+                         filter(nc)%num_urbanl, filter(nc)%urbanl, &
+                         filter(nc)%num_urbanc, filter(nc)%urbanc, &
+                         filter(nc)%num_urbanp, filter(nc)%urbanp)
+
+     ! Determine leaf temperature and surface fluxes based on ground
+     ! temperature from previous time step.
+
+     call Biogeophysics1(begg, endg, begc, endc, begp, endp, &
+                         filter(nc)%num_nolakec, filter(nc)%nolakec, &
+                         filter(nc)%num_nolakep, filter(nc)%nolakep)
+
+     ! Determine bare soil or snow-covered vegetation surface temperature and fluxes
+     ! Calculate Ground fluxes (frac_veg_nosno is either 1 or 0)
+
+     ! BareGroundFluxes for all pfts except lakes and urban landunits
+
+     call BareGroundFluxes(begp, endp, &
+                           filter(nc)%num_nolakeurbanp, filter(nc)%nolakeurbanp)
+
+     call UrbanFluxes(nc, begp, endp, begl, endl, begc, endc, &
+                      filter(nc)%num_nourbanl, filter(nc)%nourbanl, &
+                      filter(nc)%num_urbanl, filter(nc)%urbanl, &
+                      filter(nc)%num_urbanc, filter(nc)%urbanc, &
+                      filter(nc)%num_urbanp, filter(nc)%urbanp)
+
+     ! Determine non snow-covered vegetation surface temperature and fluxes
+     ! Calculate canopy temperature, latent and sensible fluxes from the canopy,
+     ! and leaf water change by evapotranspiration
+
+     call CanopyFluxes(begg, endg, begc, endc, begp, endp, &
+                       filter(nc)%num_nolakep, filter(nc)%nolakep)
+
+    ! Determine lake temperature and surface fluxes
+
+     call SLakeFluxes(begc, endc, begp, endp, &
+                         filter(nc)%num_lakec, filter(nc)%lakec, &
+                         filter(nc)%num_lakep, filter(nc)%lakep)
+     call SLakeTemperature(begc, endc, begp, endp, &
+                              filter(nc)%num_lakec, filter(nc)%lakec, &
+                              filter(nc)%num_lakep, filter(nc)%lakep)
+
+     ! Determine soil/snow temperatures including ground temperature and
+     ! update surface fluxes for new ground temperature.
+
+     call Biogeophysics2(begl, endl, begc, endc, begp, endp, &
+                         filter(nc)%num_urbanl,  filter(nc)%urbanl, &
+                         filter(nc)%num_nolakec, filter(nc)%nolakec, &
+                         filter(nc)%num_nolakep, filter(nc)%nolakep)
+
+    ! Perform averaging from PFT level to column level
+    ! YDT: potential end of pft loop? 
+
+     call pft2col(begc, endc, filter(nc)%num_nolakec, filter(nc)%nolakec)
+
+     ! Vertical (column) soil and surface hydrology
+     call Hydrology2(begc, endc, begp, endp, &
+                     filter(nc)%num_nolakec, filter(nc)%nolakec, &
+                     filter(nc)%num_hydrologyc, filter(nc)%hydrologyc, &
+                     filter(nc)%num_urbanc, filter(nc)%urbanc, &
+                     filter(nc)%num_snowc, filter(nc)%snowc, &
+                     filter(nc)%num_nosnowc, filter(nc)%nosnowc)
+
+     ! Lake hydrology
+     call SLakeHydrology(begc, endc, begp, endp, filter(nc)%num_lakec, filter(nc)%lakec, &
+                            filter(nc)%num_lakep, filter(nc)%lakep)
+
+
+     ! ! Fraction of soil covered by snow (Z.-L. Yang U. Texas)
+
+     do c = begc,endc
+        l = clandunit(c)
+        if (itypelun(l) == isturb) then
+           ! Urban landunit use Bonan 1996 (LSM Technical Note)
+           cps%frac_sno(c) = min( cps%snow_depth(c)/0.05_r8, 1._r8)
+        end if
+     end do
+
+
+     ! Snow aging routine based on Flanner and Zender (2006), Linking snowpack
+     ! microphysics and albedo evolution, JGR, and Brun (1989), Investigation of
+     ! wet-snow metamorphism in respect of liquid-water content, Ann. Glaciol.
+     ! ============================================================================
+     ! Note the snow filters here do not include lakes; SnowAge_grain is called
+     ! for lakes from SLakeHydrology.
+
+     call SnowAge_grain(begc, endc, &
+          filter(nc)%num_snowc, filter(nc)%snowc, &
+          filter(nc)%num_nosnowc, filter(nc)%nosnowc)
+
+     
+     ! YDT now back to pft level? 
+     ! Prescribed biogeography,
+     ! prescribed canopy structure, some prognostic carbon fluxes
+     call EcosystemDyn(begp, endp, &
+                       filter(nc)%num_nolakep, filter(nc)%nolakep, &
+                       doalb)
+
+     ! Check the energy and water balance
+     call BalanceCheck(begp, endp, begc, endc, begl, endl, begg, endg)
+
+     ! Determine albedos for next time step
+     if (doalb) then
+
+        ! Albedos for non-urban columns
+        call SurfaceAlbedo(begg, endg, begc, endc, begp, endp, &
+                           filter(nc)%num_nourbanc, filter(nc)%nourbanc, &
+                           filter(nc)%num_nourbanp, filter(nc)%nourbanp, &
+                           nextsw_cday, declinp1)
+
+        ! Albedos for urban columns
+        if (filter(nc)%num_urbanl > 0) then
+           call UrbanAlbedo(nc, begl, endl, begc, endc, begp, endp,   &
+                            filter(nc)%num_urbanl, filter(nc)%urbanl, &
+                            filter(nc)%num_urbanc, filter(nc)%urbanc, &
+                            filter(nc)%num_urbanp, filter(nc)%urbanp)
+        end if
+
+     end if
+
+  ! Determine gridcell averaged properties to send to atm (l2as and l2af derived types)
+  call clm_map2gcell( )
 
 end program single_col
