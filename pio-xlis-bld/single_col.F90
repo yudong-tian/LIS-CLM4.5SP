@@ -273,6 +273,37 @@
                        filter(1)%num_urbanp, filter(1)%num_nourbanp, filter(1)%num_urbanp+filter(1)%num_nourbanp
      write(*, *) "===========================================================================" 
 
+    !===========  construct atmospheric forcing ------------------------------------
+    clm_a2l%forc_t(g)        = 273.0 !atmospheric temperature (Kelvin)
+     clm_a2l%forc_u(g)        = 0.0 !atm wind speed, east direction (m/s)
+     clm_a2l%forc_v(g)        = 0.0 !atm wind speed, north direction (m/s)
+     clm_a2l%forc_wind(g)     = 0.0 !atmospheric wind speed
+     clm_a2l%forc_q(g)        = 0.0 !atmospheric specific humidity (kg/kg)
+     clm_a2l%forc_hgt(g)      = 0.0 !atmospheric reference height (m)
+     clm_a2l%forc_hgt_u(g)    = 0.0 !obs height of wind [m] (new)
+     clm_a2l%forc_hgt_t(g)    = 0.0 !obs height of temperature [m] (new)
+     clm_a2l%forc_hgt_q(g)    = 0.0 !obs height of humidity [m] (new)
+     clm_a2l%forc_pbot(g)     = 101325.0 !atmospheric pressure (Pa)
+     clm_a2l%forc_th(g)       = 273.0 !atm potential temperature (Kelvin)
+     clm_a2l%forc_vp(g)       = 0.0 !atmospheric vapor pressure (Pa)
+     clm_a2l%forc_rho(g)      = 0.0 !density (kg/m**3)
+     clm_a2l%forc_rh(g)       = 0.0 !atmospheric relative humidity (%)
+     clm_a2l%forc_psrf(g)     = 101325.0 !surface pressure (Pa)
+     clm_a2l%forc_pco2(g)     = 0.0 !CO2 partial pressure (Pa)
+     clm_a2l%forc_lwrad(g)    = 0.0 !downwrd IR longwave radiation (W/m**2)
+     clm_a2l%forc_solad(:,:)  = 0.0 !direct beam radiation (numrad) (vis=forc_sols , nir=forc_soll )
+     clm_a2l%forc_solai(:,:)  = 0.0 !diffuse radiation (numrad) (vis=forc_solsd, nir=forc_solld)
+     clm_a2l%forc_solar(g)    = 0.0 !incident solar radiation
+     clm_a2l%forc_rain(g)     = 0.0 !rain rate [mm/s]
+     clm_a2l%forc_snow(g)     = 0.0 !snow rate [mm/s]
+     clm_a2l%forc_ndep(g)     = 0.0 !nitrogen deposition rate (gN/m2/s)
+     clm_a2l%rainf(g)         = 0.0 !ALMA rain+snow [mm/s]
+     !clm_a2l%forc_pc13o2(g)   = 0.0 !C13O2 partial pressure (Pa)
+     clm_a2l%forc_po2(g)      = 0.0 !O2 partial pressure (Pa)
+     clm_a2l%forc_flood(g)    = 0.0 ! rof flood (mm/s)
+     clm_a2l%volr(g)    = 0.0 ! rof volr (m3)
+     clm_a2l%forc_aer(g,:)    = 0.0 ! aerosol deposition array
+
     !===========  ranges for a single grid box  ------------------------------------
      nc = 1    ! clump index: always 1 for now 
 
@@ -332,7 +363,7 @@
        !YDT: g, l, c, p loops 
        !YDT turn off for now 
        !YDT call dynland_hwcontent( begg, endg, gws%gc_liq1(begg:endg), &
-                               gws%gc_ice1(begg:endg), ges%gc_heat1(begg:endg) )
+       !                        gws%gc_ice1(begg:endg), ges%gc_heat1(begg:endg) )
 
 
     ! Determine decomp vertical profiles

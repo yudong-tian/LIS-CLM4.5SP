@@ -276,10 +276,10 @@ subroutine clm_drv(doalb, nextsw_cday, declinp1, declin, rstwr, nlend, rdate)
   ! ============================================================================
 
   nclumps = get_proc_clumps()
-  nc = 1
-  call get_clump_bounds(nc, begg, endg, begl, endl, begc, endc, begp, endp)
 
 !YDT
+  nc = 1
+  call get_clump_bounds(nc, begg, endg, begl, endl, begc, endc, begp, endp)
    write(iulog,*) 'clm_drv():  iam   nclumps  begg  endg   begl  endl  begc  endc  begp  endp' 
    write(iulog,*) iam,  nclumps, begg, endg, begl, endl, begc, endc, begp, endp
 
