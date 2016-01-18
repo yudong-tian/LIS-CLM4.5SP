@@ -258,11 +258,20 @@
 
      write(*, *) 
      write(*, *) "================== Filter Settings ========================================" 
-     write(*, *) " num_soilc num_soilp num_hydroc num_lakec num_lakep num_nolakec num_nolakep" 
-     write(*, '(7I9)') filter(1)%num_soilc, filter(1)%num_soilp, filter(1)%num_hydrologyc, &
-                       filter(1)%num_lakec, filter(1)%num_lakep, filter(1)%num_nolakec, filter(1)%num_nolakep
+     write(*, *) " num_soilc num_soilp " 
+     write(*, '(2I9)') filter(1)%num_soilc, filter(1)%num_soilp
+     write(*, *) " num_hydrologyc" 
+     write(*, '(I9)') filter(1)%num_hydrologyc
+     write(*, *) " num_lakec num_nolakec  totalc  num_lakep num_nolakep  totalp" 
+     write(*, '(6I9)') filter(1)%num_lakec, filter(1)%num_nolakec, filter(1)%num_lakec+filter(1)%num_nolakec, & 
+                       filter(1)%num_lakep, filter(1)%num_nolakep, filter(1)%num_lakep+filter(1)%num_nolakep
+     write(*, *) " num_snowc num_nosnowc  totalc" 
+     write(*, '(3I9)') filter(1)%num_snowc, filter(1)%num_nosnowc, filter(1)%num_snowc+filter(1)%num_nosnowc
+     write(*, *) " n_urbanl n_nourbanl totall n_urbanc n_nourbanc totalc n_urbanp n_nourbanp totalp" 
+     write(*, '(9I9)') filter(1)%num_urbanl, filter(1)%num_nourbanl, filter(1)%num_urbanl+filter(1)%num_nourbanl, &
+                       filter(1)%num_urbanc, filter(1)%num_nourbanc, filter(1)%num_urbanc+filter(1)%num_nourbanc, &
+                       filter(1)%num_urbanp, filter(1)%num_nourbanp, filter(1)%num_urbanp+filter(1)%num_nourbanp
      write(*, *) "===========================================================================" 
-
 
     !===========  ranges for a single grid box  ------------------------------------
      nc = 1    ! clump index: always 1 for now 
@@ -320,14 +329,18 @@
     ! forget DUST and VOC too 
 
     !--- get initial heat,water content ---
-       call dynland_hwcontent( begg, endg, gws%gc_liq1(begg:endg), &
+       !YDT: g, l, c, p loops 
+       !YDT turn off for now 
+       !YDT call dynland_hwcontent( begg, endg, gws%gc_liq1(begg:endg), &
                                gws%gc_ice1(begg:endg), ges%gc_heat1(begg:endg) )
 
 
     ! Determine decomp vertical profiles
+    !YDT: column loop
         call alt_calc(begc, endc, filter(nc)%num_soilc, filter(nc)%soilc)
 
     ! Initialize the mass balance checks: water
+    !YDT: column loop
      call BeginWaterBalance(begc, endc, begp, endp, &
           filter(nc)%num_nolakec, filter(nc)%nolakec, filter(nc)%num_lakec, filter(nc)%lakec, &
           filter(nc)%num_hydrologyc, filter(nc)%hydrologyc)
@@ -346,9 +359,11 @@
         cps%decl(c) = declin
      end do
 
+     !YDT: column and pft loop
      call clm_driverInit(begc, endc, begp, endp, &
           filter(nc)%num_nolakec, filter(nc)%nolakec, filter(nc)%num_lakec, filter(nc)%lakec)
 
+     !YDT: column and pft loop
      call Hydrology1(begc, endc, begp, endp, &
                      filter(nc)%num_nolakec, filter(nc)%nolakec, &
                      filter(nc)%num_nolakep, filter(nc)%nolakep)
@@ -356,11 +371,13 @@
 
      ! Surface Radiation for non-urban columns
 
+     !YDT: pft loop
      call SurfaceRadiation(begp, endp, &
                            filter(nc)%num_nourbanp, filter(nc)%nourbanp)
 
      ! Surface Radiation for urban columns
 
+     !YDT: landunit loop
      call UrbanRadiation(nc, begl, endl, begc, endc, begp, endp, &
                          filter(nc)%num_nourbanl, filter(nc)%nourbanl, &
                          filter(nc)%num_urbanl, filter(nc)%urbanl, &
@@ -370,6 +387,7 @@
      ! Determine leaf temperature and surface fluxes based on ground
      ! temperature from previous time step.
 
+     !YDT: g, l, c, p loops 
      call Biogeophysics1(begg, endg, begc, endc, begp, endp, &
                          filter(nc)%num_nolakec, filter(nc)%nolakec, &
                          filter(nc)%num_nolakep, filter(nc)%nolakep)
