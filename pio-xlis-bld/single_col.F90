@@ -12,6 +12,7 @@
     use clm_atmlnd       , only : clm_l2a, clm_a2l
     use clm_glclnd       , only : clm_s2x
     use clm_initializeMod, only : initialize1, initialize2
+    use clm_varpar       
     use clm_varctl       , only : finidat,single_column, set_clmvarctl, iulog, noland, &
                                   inst_index, inst_suffix, inst_name, &
                                   create_glacier_mec_landunit 
@@ -79,7 +80,7 @@
     type(mct_gGrid),         pointer :: dom_s
     type(seq_infodata_type), pointer :: infodata     ! CESM driver level info data
     integer  :: lsize                                ! size of attribute vector
-    integer  :: g, l, c, p, i,j, nc                  ! indices
+    integer  :: g, l, c, p, i,j, fl              ! indices
     integer  :: dtime_sync                           ! coupling time-step from the input synchronization clock
     integer  :: dtime_clm                            ! clm time-step
     logical  :: exists                               ! true if file exists
@@ -111,6 +112,13 @@
     integer :: begp, endp
     character(len=32), parameter :: sub = 'lnd_init_mct'
     character(len=*),  parameter :: format = "('("//trim(sub)//") :',A)"
+
+   !YDT local varialbes to save parameters to surfacetype and landcover 
+    integer, parameter :: nc=288, nr=192, maxpft=35+1   ! 36th is water    
+    integer :: ncid2, varid2, ic, ir, iz, ltype, ctype, ptype
+    integer :: surfacetype(nc, nr, maxpft) 
+    real(r8) :: landcover(nc, nr, maxpft)   ! grid fractions of each pft
+    character(len=200) :: ldt_file 
 
 
 !YDT local variables for clm_drv() 
@@ -204,10 +212,48 @@
 
     call get_clump_bounds(1, begg, endg, begl, endl, begc, endc, begp, endp)
 
+    !YDT  intercepting pft data and save to (overwrite) LDT file 
+    ! clm pft 0-16: map to landcover and surfacetype(:, :, z), z=1-17 
+    !     pft 61-65 (urban):  z: 18-22, 23-27, 28-32; (max 3 urban landunits ) 
 
+    ldt_file = "/home/ytian/7.0-development/run-clm45/translate_params/ldt_clm45.nc" 
+    surfacetype = 0 
+    landcover = 0.0
+    do g=begg, endg
+       ic = mod(grc%gindex(g), nc)
+       ir = ( grc%gindex(g) - ic  )/nc + 1
+       nurb = 0 
+       do p=grc%pfti(g), grc%pftf(g)      
+         ptype = pft%itype(p) 
+         ctype = col%itype(pft%column(p)) 
+         ltype = lun%itype(pft%landunit(p))
+         if ( ptype .ge. 0 .and. ptype .le. 16 .and. ltype .eq. 1 )  then 
+            nz = pft%itype(p) + 1
+            surfacetype(ic, ir, nz) = 1 
+            landcover(ic, ir, nz) = pft%wtgcell(p) 
+         end if 
+         if ( ctype .ge. 61 .and. ctype .le. 65 .and. ltype .eq. 6 )  then 
+             iz = ctype - 43 
+      
+           
+ 
+       write(*, '(2I7, F10.2, I7, F10.2, I7, F10.2, 3I5)') p, pft%column(p), pft%wtcol(p)*100, pft%landunit(p), &
+                                        pft%wtlunit(p)*100, &
+                                        pft%gridcell(p), pft%wtgcell(p)*100, pft%itype(p), &
+                                        col%itype(pft%column(p)), lun%itype(pft%landunit(p)) 
+        end do 
+     end do 
+       
+    
+
+     call check( nf90_open(ldt_file, NF90_WRITE, ncid2) )
+     call check( nf90_inq_varid(ncid2, "SURFACETYPE", varid2) )
+     call check( nf90_put_var(ncid2, varid2, surfacetype ) )
+     call check( nf90_inq_varid(ncid2, "LANDCOVER", varid2) )
+     call check( nf90_put_var(ncid2, varid2, landcover ) )
+     call check( nf90_close(ncid2) )
 
     !YDT pick one grid box at (35N, 95W) 
-    nc = 288  ! number of columns in the original grid 
     write(*, *) "==================  Table of global grids ================================" 
     write(*, *) " g       gindex   ic    ir   lat   lon   nlandunits  ncolumns  npfts" 
     write(*, *) "---------------------------------------------------------------------------" 
@@ -220,11 +266,18 @@
       ! 12762  19878  19880     35.34    265.00
     end do 
 
+    write(*, *) 
+    write(*, *) "==================  Table of clm_varpar params ==============================" 
+    write(*, *) " numpft  maxpatch_urb numurbl  maxpatch_glcmec  numcft max_pft_per_gcell" 
+    write(*, *) "---------------------------------------------------------------------------" 
+    write(*, '(6I10)')numpft, maxpatch_urb, numurbl, maxpatch_glcmec, numcft, max_pft_per_gcell
+    write(*, *) 
+
      write(*, *) "==================  Single grid decomposition ================================" 
      !g=12762
-     ! g=11083   ! with 33 pfts (max seen) 
+      g=11083   ! with 33 pfts (max seen) 
      ! 13241  39515     59    138   39.11   72.50      2      2     18
-     g=13241    ! with 27% glacier
+     !g=13241    ! with 27% glacier
      nc = 288  ! number of columns in the original grid 
      write(*, *) " g       gindex   ic    ir   lat   lon   nlandunits  ncolumns  npfts" 
      write(*, *) "---------------------------------------------------------------------------" 
@@ -256,12 +309,13 @@
      end do 
     
      write(*, *) 
-     write(*, *) " p    column     wtcol%  landunit  wtlunit%  gridcell  wtgcell%  itype_pft" 
-     write(*, *) "---------------------------------------------------------------------------" 
+     write(*, *) " p   column   wtcol%  landunit  wtlunit% gridcell wtgcel% ityp_p ityp_c ityp_l" 
+     write(*, *) "------------------------------------------------------------------------------" 
      do p=grc%pfti(g), grc%pftf(g)      
-       write(*, '(2I7, F10.2, I7, F10.2, I7, F10.2, I7)') p, pft%column(p), pft%wtcol(p)*100, pft%landunit(p), &
+       write(*, '(2I7, F10.2, I7, F10.2, I7, F10.2, 3I5)') p, pft%column(p), pft%wtcol(p)*100, pft%landunit(p), &
                                         pft%wtlunit(p)*100, &
-                                        pft%gridcell(p), pft%wtgcell(p)*100, pft%itype(p) 
+                                        pft%gridcell(p), pft%wtgcell(p)*100, pft%itype(p), &
+                                        col%itype(pft%column(p)), lun%itype(pft%landunit(p)) 
      end do 
 
      write(*, *) "===========================================================================" 
@@ -282,6 +336,18 @@
                        filter(1)%num_urbanc, filter(1)%num_nourbanc, filter(1)%num_urbanc+filter(1)%num_nourbanc, &
                        filter(1)%num_urbanp, filter(1)%num_nourbanp, filter(1)%num_urbanp+filter(1)%num_nourbanp
      write(*, *) "===========================================================================" 
+     write(*, *) 
+     write(*, *) "================Urban Filter ==============================================" 
+     write(*, *) " index    landunit   gridcell" 
+     write(*, *) "---------------------------------------------------------------------------" 
+     Do fl = 1, filter(1)%num_urbanl
+         l=filter(1)%urbanl(fl) 
+       write(*, '(3I10)') fl, l,  lun%gridcell(l)
+     End do 
+     write(*, *) "---------------------------------------------------------------------------" 
+     write(*, *)
+
+    
 
     !===========  construct atmospheric forcing ------------------------------------
     clm_a2l%forc_t(g)        = 273.0 !atmospheric temperature (Kelvin)
