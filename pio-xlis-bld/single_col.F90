@@ -207,14 +207,22 @@
 
 
     !YDT pick one grid box at (35N, 95W) 
-    !do g=begg, endg
-      ! write(*, '(3I7, 2F10.2)') g, grc%luni(g), grc%lunf(g), grc%latdeg(g), grc%londeg(g)  
+    nc = 288  ! number of columns in the original grid 
+    write(*, *) "==================  Table of global grids ================================" 
+    write(*, *) " g       gindex   ic    ir   lat   lon   nlandunits  ncolumns  npfts" 
+    write(*, *) "---------------------------------------------------------------------------" 
+    do g=begg, endg
+     !write(*, '(4I7, 2F8.2, 3I7)') g, grc%gindex(g), mod(grc%gindex(g), nc), &
+     !             (grc%gindex(g) - mod(grc%gindex(g), nc) )/nc + 1, & 
+     !            grc%latdeg(g), grc%londeg(g), & 
+     !       grc%nlandunits(g), grc%ncolumns(g), grc%npfts(g) 
       ! at (35N, 95W) 
       ! 12762  19878  19880     35.34    265.00
-    !end do 
+    end do 
 
      write(*, *) "==================  Single grid decomposition ================================" 
-     g=12762
+     !g=12762
+     g=11083
      nc = 288  ! number of columns in the original grid 
      write(*, *) " g       gindex   ic    ir   lat   lon   nlandunits  ncolumns  npfts" 
      write(*, *) "---------------------------------------------------------------------------" 

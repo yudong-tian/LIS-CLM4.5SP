@@ -18,7 +18,7 @@ mpif90  -c -free -check -traceback -I.  \
   -DNDEBUG -DMCT_INTERFACE -DHAVE_MPI -DFORTRANUNDERSCORE -DNO_R16 -DFORTRANUNDERSCORE -DNO_R16 \
   -DHAVE_F2008_CONTIGUOUS -DLINUX -DCPRINTEL  -DHAVE_SLASHPROC -free \
   my_code/clm_driver.F90 \
-  xlis_main.F90  
+  single_col.F90  
 
 #  -DYDT_DEBUG \
 
@@ -27,7 +27,7 @@ mpif90  -c -free -check -traceback -I.  \
 # but if not compiled here, will get 
 # "ERROR: pconv+pprod10+pprod100 do NOT sum to one"
 
-mpif90  -free -check -traceback -o xlis_main xlis_main.o clm_driver.o \
+mpif90  -free -check -traceback -o single_col single_col.o clm_driver.o \
   -L/discover/nobackup/ytian/CESM_CODE/LIS-CLM4.5SP/bld/lib/  \
   -latm -lice -llnd -locn -lrof -lglc -lwav \
   -L/discover/nobackup/ytian/CESM_CODE/LIS-CLM4.5SP/bld/intel/impi/nodebug/nothreads/MCT/noesmf/a1l1r1i1o1g1w1/csm_share \
