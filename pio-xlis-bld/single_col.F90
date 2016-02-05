@@ -222,7 +222,9 @@
 
      write(*, *) "==================  Single grid decomposition ================================" 
      !g=12762
-     g=11083
+     ! g=11083   ! with 33 pfts (max seen) 
+     ! 13241  39515     59    138   39.11   72.50      2      2     18
+     g=13241    ! with 27% glacier
      nc = 288  ! number of columns in the original grid 
      write(*, *) " g       gindex   ic    ir   lat   lon   nlandunits  ncolumns  npfts" 
      write(*, *) "---------------------------------------------------------------------------" 
